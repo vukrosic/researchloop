@@ -13,12 +13,12 @@ This repo is both the product and the startup home base.
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-Set up an autonomous AI research environment in this repo using ResearchLoop.
-Read the ResearchLoop docs and the .researchloop/ files, inspect the repo, establish the baseline, propose a small set of experiments, run the smallest valid change first, record every result, compare runs, and keep the research loop moving.
-Use the package commands to manage goals, ideas, prompts, runs, comparisons, and reports.
+Run npm install -g researchloop, then read the docs and propose an autonomous research plan.
 ```
 
-Then install ResearchLoop:
+---
+
+Manual Installation:
 
 ```bash
 npm install -g researchloop
@@ -43,6 +43,7 @@ researchloop inspect
 researchloop scan-papers --limit 10
 researchloop idea --write
 researchloop prompt --agent codex
+researchloop team --workers 8
 researchloop baseline
 researchloop run --id lr-3e-4 --command "python train.py --lr 3e-4"
 researchloop compare --metric val_loss --direction lower
@@ -61,6 +62,7 @@ Then paste the generated prompt into the coding agent.
   goal.md
   plan.md
   repo-profile.json
+  team/
   adapters/
   scratchpad/
     THREAD.md
@@ -133,6 +135,7 @@ The startup plan is in `docs/startup/`.
 - `researchloop scan-papers` fetches relevant arXiv abstracts into `.researchloop/scratchpad/papers/`.
 - `researchloop idea` generates ranked experiment ideas, including paper-derived ones, and can write an idea note.
 - `researchloop prompt` prints an agent-ready autonomous research prompt, with optional focus playbooks.
+- `researchloop team` generates a local multi-agent development board for the ResearchLoop repo or another project.
 - `researchloop baseline` runs the baseline command, parses the metric, and locks it into `goal.md` and `plan.md`.
 - `researchloop run` executes a training or eval command, streams the log, parses the metric, and records the run.
 - `researchloop record` appends a structured run result to `runs.jsonl` (use for manual rows).
@@ -146,6 +149,7 @@ The startup plan is in `docs/startup/`.
 - `npm run test:scan-papers` checks the arXiv scan path against a recorded XML fixture (no network).
 - `npm run test:goal` checks goal saving and prompt handoff.
 - `npm run test:idea` checks idea generation for a blank repo, an llm-research-kit-shaped repo, and a paper-augmented repo.
+- `npm run test:team` checks the multi-agent development board and worker files.
 - `npm run test:dashboard` checks the local dashboard server and API.
 - `npm run test:prompts` checks prompt templates for placeholder drift.
 - `npm run test:focus-prompts` checks the hyperparameter, architecture, and attention playbooks.

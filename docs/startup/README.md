@@ -43,6 +43,7 @@ Startup work means building a repeatable engine around the open source tool:
 ```text
 users/              PhD students, labs, companies, interviews, feedback
 open-source.md      Open source principles and commercialization boundary
+agent-ops.md        Multi-agent operating model for building ResearchLoop
 positioning.md      What we say the product is and is not
 pricing.md          Future paid layers, not the first wedge
 risks.md            Failure modes and countermeasures

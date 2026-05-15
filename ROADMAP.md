@@ -6,6 +6,7 @@
 - Make the npm package useful before adding hosted infrastructure.
 - Validate the loop on `llm-research-kit` and one outside repo.
 - Talk to PhD students and lab users before expanding adapters.
+- Use a small orchestrator / worker / reviewer hierarchy when developing the repo itself.
 
 ## MVP
 
@@ -25,6 +26,7 @@
 
 ## Next Product Work
 
+- `researchloop team` polish: better lane splitting, branch/worktree helpers, and a machine-readable board.
 - `researchloop replay <run-id>` re-executes a stored run and flags reproducibility deltas.
 - `researchloop scan-github` for repos with similar training scripts.
 - `researchloop promote <run-id>` copies a winning config/diff into `winners/`.

@@ -14,8 +14,8 @@ The shortest way to think about it:
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-Set up an autonomous AI research environment in this repo using ResearchLoop.
-Read the ResearchLoop docs and the .researchloop/ files, inspect the repo, establish the baseline, propose a small set of experiments, run the smallest valid change first, record every result, compare runs, and keep the research loop moving.
+Install the `researchloop` npm package if needed, then set up an autonomous AI research environment in this repo according to ResearchLoop.
+Read the ResearchLoop docs and the `.researchloop/` files, inspect the repo, establish the baseline, propose a small set of experiments, run the smallest valid change first, record every result, compare runs, and keep the research loop moving.
 Use the package commands to manage goals, ideas, prompts, runs, comparisons, and reports.
 ```
 
@@ -207,7 +207,30 @@ Then open the localhost URL it prints. The dashboard reads the repo's `.research
 
 It does not need accounts or auth because it stays on your machine.
 
-## 10. Test the setup before you trust it
+## 10. Generate a team board for parallel work
+
+If you want to develop ResearchLoop itself, or split any repo into parallel lanes, generate a local team board:
+
+```bash
+researchloop team --workers 8
+```
+
+That writes `.researchloop/team/` with:
+
+- an orchestrator brief
+- a reviewer brief
+- one worker file per lane
+- a board that maps branches, files, and done criteria
+
+The intended flow is:
+
+1. Human sets the release goal.
+2. Orchestrator assigns the lanes.
+3. Workers take one branch or worktree each.
+4. Reviewer checks the diffs before merge.
+5. Human merges the branches that have evidence.
+
+## 11. Test the setup before you trust it
 
 Run the local checks from this repo:
 
@@ -229,7 +252,7 @@ These checks verify that:
 - the website copy matches the product
 - the end-to-end flow works
 
-## 11. Use it in a real ML repo
+## 12. Use it in a real ML repo
 
 Once the basics work, move into a real project:
 

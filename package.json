@@ -24,6 +24,7 @@
     "test:compare": "bash ./scripts/test-compare.sh",
     "test:run": "bash ./scripts/test-run.sh",
     "test:scan-papers": "bash ./scripts/test-scan-papers.sh",
+    "test:team": "bash ./scripts/test-team.sh",
     "test:prompts": "bash ./scripts/test-prompts.sh",
     "test:focus-prompts": "bash ./scripts/test-focus-prompts.sh",
     "test:site": "bash ./scripts/test-site.sh"

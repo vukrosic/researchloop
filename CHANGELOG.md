@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+New:
+
+- `researchloop team` writes a local multi-agent development board with orchestrator, reviewer, and worker briefs.
+- `templates/team/` now ships role templates for the development hierarchy.
+- `docs/startup/agent-ops.md` explains the human / orchestrator / worker / reviewer flow for building ResearchLoop itself.
+
+Docs:
+
+- README and getting-started now point users to the prompt first and include the team board flow.
+
 ## 0.2.0
 
 ResearchLoop becomes a runtime, not just a folder.
@@ -47,4 +59,3 @@ Also includes:
 - onboarding tests
 - competitor research notes
 - open source release plan
-

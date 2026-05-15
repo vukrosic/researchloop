@@ -212,6 +212,143 @@ function installAgentFile(cwd, agent, force) {
   return writeFileSafe(path.join(cwd, "AGENTS.md"), content, force);
 }
 
+function renderTemplate(text, values) {
+  let output = text;
+  for (const [key, value] of Object.entries(values)) {
+    output = output.replaceAll(`{{${key}}}`, String(value ?? ""));
+  }
+  return output;
+}
+
+function slugify(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/--+/g, "-") || "task";
+}
+
+function buildDevelopmentLanes(cwd) {
+  const lanes = [
+    {
+      title: "CLI and runtime",
+      slug: "cli-runtime",
+      scope: "bin/researchloop.js, package.json, and command plumbing",
+      files: ["bin/researchloop.js", "package.json"],
+      done: "Core commands still pass, the new work does not break the CLI, and the help text stays accurate.",
+    },
+    {
+      title: "Dashboard and state API",
+      slug: "dashboard",
+      scope: "templates/dashboard/index.html and the local state endpoints",
+      files: ["bin/researchloop.js", "templates/dashboard/index.html"],
+      done: "The localhost dashboard still renders and reflects the repo state correctly.",
+    },
+    {
+      title: "Prompt packs and skills",
+      slug: "prompts-skills",
+      scope: "templates/prompts/*, templates/team/*, and skills/*",
+      files: ["templates/prompts", "skills"],
+      done: "Prompt templates stay aligned with the README and the downloadable skill pack.",
+    },
+    {
+      title: "Docs and onboarding",
+      slug: "docs-onboarding",
+      scope: "README.md, docs/getting-started.md, and startup docs",
+      files: ["README.md", "docs/getting-started.md", "docs/startup"],
+      done: "A new user can copy the prompt, install the package, and reach the first run without guessing.",
+    },
+    {
+      title: "Tests and CI",
+      slug: "tests-ci",
+      scope: "scripts/test-*.sh and .github/workflows/ci.yml",
+      files: ["scripts", ".github/workflows/ci.yml"],
+      done: "Every meaningful change has a local test and CI still covers the important paths.",
+    },
+    {
+      title: "Release and publishing",
+      slug: "release-publishing",
+      scope: "CHANGELOG.md, ROADMAP.md, release notes, npm publish steps, and GitHub releases",
+      files: ["CHANGELOG.md", "ROADMAP.md", "docs/startup/release-plan.md"],
+      done: "The next version can be published cleanly with a short release note and no repo confusion.",
+    },
+    {
+      title: "Competitor and user research",
+      slug: "competitor-research",
+      scope: "docs/competitors/* and docs/startup/users/*",
+      files: ["docs/competitors", "docs/startup/users"],
+      done: "We keep learning from the ecosystem and from real users without turning research into vapor.",
+    },
+    {
+      title: "Public site and launch copy",
+      slug: "site-launch",
+      scope: "docs/site/* and the launch-facing copy",
+      files: ["docs/site"],
+      done: "The public site stays short, clear, and matched to the current product surface.",
+    },
+    {
+      title: "Repo detection and adapters",
+      slug: "adapters-detection",
+      scope: "repo profiling, adapter detection, and adapter templates",
+      files: ["bin/researchloop.js", "templates/adapters"],
+      done: "The repo profiler keeps working and adapter detection stays honest.",
+    },
+    {
+      title: "Integration and merge safety",
+      slug: "integration-review",
+      scope: "cross-cutting review, branch cleanup, and merge safety",
+      files: ["README.md", "docs/startup/README.md", "docs/startup/release-plan.md"],
+      done: "Conflicting diffs are caught before merge and the board stays current.",
+    },
+    {
+      title: "Examples and fixtures",
+      slug: "examples-fixtures",
+      scope: "examples/* and examples/fixtures/*",
+      files: ["examples"],
+      done: "The copyable examples keep the onboarding and tests grounded in real files.",
+    },
+    {
+      title: "Research logs and evidence",
+      slug: "research-evidence",
+      scope: "docs/research/* and experiment evidence",
+      files: ["docs/research"],
+      done: "The repo keeps a record of what was actually tried and what changed.",
+    },
+  ];
+
+  return lanes;
+}
+
+function buildTeamPlan(cwd, goalText, requestedWorkers) {
+  const lanes = buildDevelopmentLanes(cwd);
+  const targetCount = Math.max(1, Math.min(requestedWorkers, 20));
+  const selected = lanes.slice(0, targetCount);
+  while (selected.length < targetCount) {
+    const index = selected.length + 1;
+    selected.push({
+      title: `Follow-up lane ${index}`,
+      slug: `follow-up-${String(index).padStart(2, "0")}`,
+      scope: "Use this lane for the next bottleneck the orchestrator finds.",
+      files: ["README.md"],
+      done: "The lane produced one clear patch, one note, and one merge-ready diff.",
+    });
+  }
+
+  return {
+    goalText,
+    workers: selected.map((lane, index) => ({
+      index: index + 1,
+      title: lane.title,
+      slug: slugify(lane.slug),
+      scope: lane.scope,
+      files: lane.files,
+      done: lane.done,
+      branch: `codex/researchloop-${slugify(lane.slug)}`,
+      worktree: `../researchloop-${slugify(lane.slug)}`,
+    })),
+  };
+}
+
 function cmdInit() {
   const cwd = targetDir();
   const force = hasFlag("--force");
@@ -1334,6 +1471,100 @@ async function cmdScanPapers() {
   console.log(`papers written to: ${path.relative(cwd, papersDir)}`);
 }
 
+function cmdTeam() {
+  const cwd = targetDir();
+  const researchDir = path.join(cwd, ".researchloop");
+  ensureDir(researchDir);
+  const teamDir = path.join(researchDir, "team");
+  const workersRaw = Number(option("--workers", 8));
+  const workerCount = Number.isFinite(workersRaw) && workersRaw > 0 ? Math.floor(workersRaw) : 8;
+  const goalText =
+    option("--goal", "") ||
+    readGoalSummary(path.join(researchDir, "goal.md")) ||
+    "Build the smallest useful multi-agent development loop for ResearchLoop.";
+  const plan = buildTeamPlan(cwd, goalText, workerCount);
+  const templateDir = path.join(templatesRoot, "team");
+
+  fs.rmSync(teamDir, { recursive: true, force: true });
+  ensureDir(teamDir);
+  ensureDir(path.join(teamDir, "workers"));
+
+  const boardRows = plan.workers
+    .map((worker) => {
+      const files = worker.files.join(", ");
+      return `| ${String(worker.index).padStart(2, "0")} | ${worker.title} | ${worker.branch} | ${worker.scope} | ${files} | pending |`;
+    })
+    .join("\n");
+  const setupCommands = plan.workers
+    .map((worker) => `git worktree add -b ${worker.branch} ${worker.worktree} HEAD`)
+    .join("\n");
+
+  const sharedValues = {
+    GOAL: plan.goalText,
+    WORKER_COUNT: String(plan.workers.length),
+    BOARD_ROWS: boardRows,
+    SETUP_COMMANDS: setupCommands,
+  };
+
+  for (const name of ["README.md", "orchestrator.md", "reviewer.md", "board.md", "setup.sh"]) {
+    const template = readTextIfExists(path.join(templateDir, name));
+    if (template) {
+      writeFileSafe(path.join(teamDir, name), renderTemplate(template, sharedValues), true);
+    }
+  }
+  const setupFile = path.join(teamDir, "setup.sh");
+  if (fs.existsSync(setupFile)) {
+    fs.chmodSync(setupFile, 0o755);
+  }
+
+  const workerTemplate = readTextIfExists(path.join(templateDir, "worker.md"));
+  for (const worker of plan.workers) {
+    const file = path.join(teamDir, "workers", `${String(worker.index).padStart(2, "0")}-${worker.slug}.md`);
+    const rendered = renderTemplate(workerTemplate, {
+      ...sharedValues,
+      INDEX: String(worker.index).padStart(2, "0"),
+      TITLE: worker.title,
+      SLUG: worker.slug,
+      BRANCH: worker.branch,
+      WORKTREE: worker.worktree,
+      SCOPE: worker.scope,
+      FILES: worker.files.map((file) => `- ${file}`).join("\n"),
+      DONE: worker.done,
+    });
+    writeFileSafe(file, rendered, true);
+  }
+
+  const summaryFile = path.join(teamDir, "summary.md");
+  const summary = [
+    "# ResearchLoop Development Team",
+    "",
+    `Goal: ${plan.goalText}`,
+    `Workers: ${plan.workers.length}`,
+    "",
+    "Roles:",
+    "- human: release direction and final merge gate",
+    "- orchestrator: decomposition and assignment",
+    "- reviewer: merge safety and test gate",
+    "- workers: one lane each",
+    "",
+    "Suggested next step:",
+    "Create one worktree or branch per worker, then let the orchestrator assign the first round.",
+    "",
+    "Branches:",
+    ...plan.workers.map((worker) => `- ${worker.branch}`),
+    "",
+  ].join("\n");
+  writeFileSafe(summaryFile, summary, true);
+
+  console.log(`ResearchLoop development team written to ${path.relative(cwd, teamDir)}`);
+  console.log(`workers: ${plan.workers.length}`);
+  console.log(`goal: ${plan.goalText}`);
+  for (const worker of plan.workers) {
+    console.log(`- ${String(worker.index).padStart(2, "0")} ${worker.title} -> ${worker.branch}`);
+  }
+  console.log("Next: create branches or worktrees, then hand each lane to a separate agent.");
+}
+
 function cmdHelp() {
   console.log(`Research Loop
 
@@ -1349,6 +1580,7 @@ Usage:
   researchloop baseline [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]
   researchloop scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   researchloop compare [--dir PATH] [--metric NAME] [--direction lower|higher]
+  researchloop team [--dir PATH] [--workers N] [--goal TEXT]
   researchloop dashboard [--dir PATH] [--host HOST] [--port PORT]
   researchloop report [--dir PATH]
 
@@ -1381,6 +1613,8 @@ async function main() {
     await cmdScanPapers();
   } else if (command === "compare") {
     cmdCompare();
+  } else if (command === "team") {
+    cmdTeam();
   } else if (command === "dashboard") {
     cmdDashboard();
   } else if (command === "report") {
