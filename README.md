@@ -1,12 +1,12 @@
-# ResearchLoop
+<p align="center">
+  <img src="./assets/researchloop-banner.webp" alt="ResearchLoop banner" width="100%" />
+</p>
 
 ResearchLoop is an open source npm package for autonomous AI research workflows.
 
 If you want the full step-by-step usage and publish guide, read [docs/getting-started.md](./docs/getting-started.md).
 
 It installs a durable research harness into a machine learning repo so agents like Codex, Claude Code, Hermes, Cursor, and similar tools can inspect the code, propose experiments, run small checks, log results, and continue the loop without losing context.
-
-This repo is both the product and the startup home base.
 
 ## Give This Prompt To Your Agent
 

@@ -195,8 +195,13 @@ function installAgentFile(cwd, agent, force) {
     "- `.researchloop/goal.md`",
     "- `.researchloop/plan.md`",
     "- `.researchloop/scratchpad/THREAD.md`",
+    "- `.researchloop/scratchpad/runs.jsonl`",
+    "- recent idea notes in `.researchloop/scratchpad/ideas/`",
     "",
-    "Use `.researchloop/` as durable working memory. Record commands, metrics, decisions, and next experiments.",
+    "Use `.researchloop/` as durable working memory.",
+    "Record commands, metrics, decisions, history, and next experiments there.",
+    "Base new ideas on the repo's own experiment history first.",
+    "Do not default to learning-rate sweeps unless the history or repo shape makes them the right follow-up.",
     "",
   ].join("\n");
 
@@ -383,7 +388,6 @@ function cmdInspect() {
 
 function cmdPrompt() {
   const cwd = targetDir();
-  const agent = String(option("--agent", "codex"));
   const explicitGoal = option("--goal", null);
   const savedGoal = readGoalSummary(path.join(cwd, ".researchloop", "goal.md"));
   const focus = String(option("--focus", option("--playbook", ""))).trim();
@@ -391,9 +395,8 @@ function cmdPrompt() {
     explicitGoal ||
     savedGoal ||
     "Improve the target metric through small, documented experiments.";
-  const promptFile = path.join(templatesRoot, "prompts", `${agent}.md`);
-  const fallback = path.join(templatesRoot, "prompts", "generic.md");
-  const template = fs.readFileSync(fs.existsSync(promptFile) ? promptFile : fallback, "utf8");
+  const promptFile = path.join(templatesRoot, "prompts", "researchloop.md");
+  const template = fs.readFileSync(promptFile, "utf8");
   let output = template.replaceAll("{{GOAL}}", goal);
 
   if (focus) {
@@ -572,6 +575,39 @@ function parseRunsLedger(ledgerFile) {
     });
 }
 
+function readExperimentHistory(cwd) {
+  const researchDir = path.join(cwd, ".researchloop");
+  const goalPath = path.join(researchDir, "goal.md");
+  const planPath = path.join(researchDir, "plan.md");
+  const threadPath = path.join(researchDir, "scratchpad", "THREAD.md");
+  const ledgerPath = path.join(researchDir, "scratchpad", "runs.jsonl");
+  const goal = parseGoalFile(goalPath);
+  const plan = parsePlanFile(planPath);
+  const runs = parseRunsLedger(ledgerPath).filter((run) => !run.parse_error);
+  const primaryMetric = choosePrimaryMetric(goal, runs);
+  const preferHigher = String(goal.direction || "").toLowerCase().includes("high");
+  const summary = summarizeDashboardRuns(runs, primaryMetric, preferHigher);
+  const threadText = readTextIfExists(threadPath);
+  const threadTail = threadText
+    .split("\n")
+    .filter(Boolean)
+    .slice(-12)
+    .join("\n")
+    .trim();
+
+  return {
+    goal,
+    plan,
+    runs,
+    primaryMetric,
+    preferHigher,
+    summary,
+    recentRuns: runs.slice(-3),
+    threadTail,
+    hasHistory: runs.length > 0 || Boolean(threadTail),
+  };
+}
+
 function isNumericMetric(value) {
   return Number.isFinite(Number(value));
 }
@@ -728,129 +764,85 @@ function loadRepoProfile(cwd) {
   return detectRepo(cwd);
 }
 
-function buildIdeaList(profile, goalText) {
+function buildIdeaList(profile, goalText, history) {
   const adapters = Array.isArray(profile?.adapters) ? profile.adapters : ["generic"];
-  const adapterSet = new Set(adapters);
   const ideas = [];
+  const hasHistory = Boolean(history?.summary?.totalRuns);
+  const metric = history?.primaryMetric || goalText || "the target metric";
 
   const add = (rank, title, hypothesis, change, killCriterion, whyNow) => {
     ideas.push({ rank, title, hypothesis, change, killCriterion, whyNow });
   };
 
-  if (adapterSet.has("llm-research-kit")) {
+  if (hasHistory) {
+    const bestRun = history.summary.bestRun;
+    const worstRun = history.summary.worstRun;
+    const latestRun = history.summary.latestRun;
+    const recentIds = history.recentRuns.map((run) => run.id).filter(Boolean).join(", ");
+
     add(
       1,
-      "Baseline config lock",
-      `We need a clean baseline for ${goalText || "the target metric"} before changing architecture.`,
-      "Run the current tiny config once with logging fixed, and verify val_loss parsing end to end.",
-      "If the baseline cannot be reproduced twice, do not touch architecture yet.",
-      "This tells us whether the metric path is trustworthy."
+      "Reconstruct the last meaningful comparison",
+      `The repo already has experiment history for ${metric}, so the next step should come from what changed between the strongest and weakest runs.`,
+      `Compare the best run${bestRun ? ` (${bestRun.run.id} = ${bestRun.value})` : ""} against the latest or worst run${worstRun ? ` (${worstRun.run.id} = ${worstRun.value})` : ""}, then write the exact difference into the notes before changing code.`,
+      "If the difference cannot be explained from recorded evidence, do not widen the search.",
+      "This uses the repo's own history instead of guessing a new direction."
     );
     add(
       2,
-      "Learning rate sweep",
-      `Learning rate is usually the cheapest knob for ${goalText || "loss reduction"}.`,
-      "Sweep a few learning rates while holding d_model, n_layers, batch size, and dataset fixed.",
-      "If no setting beats baseline by a meaningful margin, prune the family.",
-      "Cheap, high-signal, and likely to matter before architecture changes."
+      "Reproduce the strongest run once",
+      "A real win should survive another execution before it is treated as signal.",
+      `Re-run the current best setup${latestRun ? ` or the most recent interesting run (${latestRun.id})` : ""} with the same command and confirm the metric is stable.`,
+      "If the result disappears under reproduction, demote it.",
+      "This protects the repo from lucky outliers."
     );
     add(
       3,
-      "Tiny architecture sweep",
-      "A small architecture change may help after the optimizer path is stable.",
-      "Try one change at a time: d_model, n_layers, or d_ff, but never stack them in the first pass.",
-      "If the change helps only once and not on reproduction, discard it.",
-      "This is the smallest architecture probe that still feels real."
+      "Test one unexplored mechanism",
+      `The history says which families are already explored; the next research step should change one actual mechanism the repo still has not explained.`,
+      `Choose one mechanism-level change suggested by the repo surface${recentIds ? ` and the recent runs (${recentIds})` : ""} - data flow, evaluation logic, model component behavior, or loss computation - and test only that.`,
+      "If the idea is just a parameter cloud, rewrite it.",
+      "This is closer to real research than repeating another sweep."
     );
     add(
       4,
-      "Second-seed reproduction",
-      "Any win should survive a second run before it is promoted.",
-      "Re-run the best candidate with a fresh seed and the same config.",
-      "If the win vanishes, demote it and keep searching.",
-      "This prevents the project from believing one lucky run."
-    );
-  } else if (adapterSet.has("huggingface")) {
-    add(
-      1,
-      "Baseline reproduction",
-      `Confirm the current Hugging Face training path before changing anything for ${goalText || "the target metric"}.`,
-      "Run the existing Trainer or training script once and capture the metric extraction path.",
-      "If the baseline is unstable, stop and fix reproducibility first.",
-      "Cheap signal before any parameter sweeps."
-    );
-    add(
-      2,
-      "Learning rate and schedule sweep",
-      "Trainer setups often respond first to LR and warmup changes.",
-      "Sweep learning rate, warmup ratio, and scheduler while keeping the dataset and model fixed.",
-      "If none of the runs improve, prune the family.",
-      "Usually the highest-return low-risk ablation."
-    );
-    add(
-      3,
-      "Batch and precision check",
-      "Throughput or stability may be limiting the current run.",
-      "Try a single batch-size or precision change, not both at once.",
-      "If validation gets noisier without speed or quality gain, stop.",
-      "A small systems-level change can reveal an easy win."
-    );
-  } else if (adapterSet.has("pytorch")) {
-    add(
-      1,
-      "Baseline reproduction",
-      `Confirm the current PyTorch path before changing anything for ${goalText || "the target metric"}.`,
-      "Run the existing train script once and capture the evaluation command plus metric path.",
-      "If the baseline cannot be reproduced, fix that first.",
-      "You need a stable starting point."
-    );
-    add(
-      2,
-      "Optimizer sweep",
-      "Optimizer choice is often the cheapest first lever.",
-      "Compare AdamW against the repo's current optimizer while holding everything else fixed.",
-      "If the alternative does not beat baseline, stop the family.",
-      "This is a small, interpretable change."
-    );
-    add(
-      3,
-      "Learning rate sweep",
-      "Learning rate usually matters more than most architectural changes early on.",
-      "Sweep a few learning rates around the current default.",
-      "If the curve is flat, prune the family.",
-      "Fast and often decisive."
+      "Only then consider a narrow sweep",
+      "A sweep is useful only when the history says the bottleneck is tuning rather than mechanism.",
+      "If the recorded experiments all point to optimization noise, run a narrow, justified sweep around the best recorded setup.",
+      "If the sweep is not justified by the history, skip it.",
+      "Sweeps are a follow-up, not the default."
     );
   } else {
     add(
       1,
       "Find the baseline",
-      `Before optimizing ${goalText || "the target metric"}, identify the exact command that produces the current metric.`,
+      `Before optimizing ${metric}, identify the exact command that produces the current metric.`,
       "Use inspect to find the training and evaluation commands, then run the smallest proof-of-life command.",
       "If the baseline is unknown, do not guess at improvements yet.",
       "The workflow starts with observability."
     );
     add(
       2,
-      "Metric plumbing check",
-      "A lot of early failures are just missing metric extraction.",
-      "Make sure the repo prints one clear metric that can be compared run to run.",
-      "If no reliable metric exists, stop and add logging before tuning.",
-      "Without a metric, experiments are theater."
+      "Define the real research question",
+      "Make the repo's actual question explicit before changing code.",
+      `Use the repo shape and goal to identify one meaningful mechanism to test, such as data flow, evaluation logic, model behavior, or a single structural assumption.`,
+      "If the idea is just a blind sweep, stop and rewrite it.",
+      "This keeps the first experiment tied to the repo, not a generic tuning habit."
     );
     add(
       3,
-      "Smallest config change",
-      "Once the metric is stable, try one config change at a time.",
-      "Prefer a hyperparameter or schedule change before touching architecture.",
-      "If a change is hard to explain or reproduce, discard it.",
-      "This keeps the first pass cheap and legible."
+      "Run one mechanism test",
+      "A real experiment changes one thing the repo can explain.",
+      "Pick one mechanism-level change, run it once, and record the result in the ledger and thread.",
+      "If the change cannot be explained in a sentence, it is probably too vague.",
+      "This is more useful than guessing at a cloud of hyperparameters."
     );
   }
 
   return ideas;
 }
 
-function renderIdeasMarkdown(profile, goalText, ideas) {
+function renderIdeasMarkdown(profile, goalText, history, ideas) {
   const adapters = (profile?.adapters || ["generic"]).join(", ");
   const lines = [
     "# Research Ideas",
@@ -858,7 +850,40 @@ function renderIdeasMarkdown(profile, goalText, ideas) {
     `Goal: ${goalText || "Unknown"}`,
     `Adapters: ${adapters}`,
     "",
+    "## Experiment History",
+    "",
   ];
+
+  if (!history || !history.summary || history.summary.totalRuns === 0) {
+    lines.push("No run history found yet in `.researchloop/scratchpad/runs.jsonl`.", "");
+  } else {
+    lines.push(`Runs: ${history.summary.totalRuns}`);
+    if (history.primaryMetric) {
+      lines.push(`Primary metric: ${history.primaryMetric}`);
+    }
+    if (history.summary.bestRun) {
+      lines.push(`Best: ${history.summary.bestRun.run.id} = ${history.summary.bestRun.value}`);
+    }
+    if (history.summary.worstRun) {
+      lines.push(`Worst: ${history.summary.worstRun.run.id} = ${history.summary.worstRun.value}`);
+    }
+    if (history.summary.latestRun) {
+      lines.push(`Latest: ${history.summary.latestRun.id}`);
+    }
+    if (history.recentRuns.length) {
+      lines.push("", "Recent runs:");
+      for (const run of history.recentRuns) {
+        const metricSummary = Object.entries(run.metrics || {})
+          .map(([key, value]) => `${key}=${value}`)
+          .join(", ");
+        lines.push(`- ${run.id}${metricSummary ? `: ${metricSummary}` : ""}`);
+      }
+    }
+    if (history.threadTail) {
+      lines.push("", "Recent thread notes:", "```text", history.threadTail, "```");
+    }
+    lines.push("");
+  }
 
   for (const idea of ideas) {
     lines.push(
@@ -920,12 +945,13 @@ function cmdIdea() {
   ensureDir(researchDir);
   const goalText = option("--goal", "") || readGoalSummary(path.join(researchDir, "goal.md"));
   const profile = loadRepoProfile(cwd);
-  const ideas = buildIdeaList(profile, goalText);
+  const history = readExperimentHistory(cwd);
+  const ideas = buildIdeaList(profile, goalText, history);
   const papers = readPaperNotes(cwd);
   if (papers.length) {
     ideas.push(...buildPaperIdeas(papers, goalText, ideas.length + 1));
   }
-  const markdown = renderIdeasMarkdown(profile, goalText, ideas);
+  const markdown = renderIdeasMarkdown(profile, goalText, history, ideas);
   process.stdout.write(`${markdown}\n`);
 
   if (hasFlag("--write")) {
@@ -1573,7 +1599,7 @@ Usage:
   researchloop goal [TEXT] [--dir PATH] [--metric NAME] [--direction lower|higher] [--baseline CMD] [--evaluation CMD] [--allowed TEXT] [--forbidden TEXT]
   researchloop inspect [--dir PATH]
   researchloop idea [--dir PATH] [--goal TEXT] [--write]
-  researchloop prompt [--agent codex|claude-code|hermes|generic] [--goal TEXT] [--focus hyperparameters|architecture|attention]
+  researchloop prompt [--goal TEXT] [--focus hyperparameters|architecture|attention] [--agent NAME]
   researchloop doctor [--dir PATH] [--python PATH]
   researchloop record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]
   researchloop run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]

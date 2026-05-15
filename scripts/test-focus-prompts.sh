@@ -3,9 +3,9 @@ set -euo pipefail
 
 goal="reduce validation loss"
 
-hyper="$(node ./bin/researchloop.js prompt --agent codex --goal "$goal" --focus hyperparameters)"
-arch="$(node ./bin/researchloop.js prompt --agent codex --goal "$goal" --focus architecture)"
-attn="$(node ./bin/researchloop.js prompt --agent codex --goal "$goal" --focus attention)"
+hyper="$(node ./bin/researchloop.js prompt --goal "$goal" --focus hyperparameters)"
+arch="$(node ./bin/researchloop.js prompt --goal "$goal" --focus architecture)"
+attn="$(node ./bin/researchloop.js prompt --goal "$goal" --focus attention)"
 
 printf '%s' "$hyper" | grep -q "Hyperparameter Optimization Playbook"
 printf '%s' "$hyper" | grep -q "muon_lr"

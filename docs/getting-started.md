@@ -5,9 +5,19 @@ ResearchLoop is an open source npm package that helps an AI agent run a discipli
 The shortest way to think about it:
 
 - you install the CLI
-- you point it at a repo
+- you point it at a target repo or research dir
 - it creates a durable `.researchloop/` workspace
 - your AI agent uses that workspace to plan, run, compare, and record experiments
+
+If no target repo is obvious, use this rule:
+
+1. If the current folder is a real repo, use it.
+2. If the current folder is empty or not a repo, ask: "Use this folder, point me at a GitHub repo, or spin up a demo research repo?"
+3. If the user has a GitHub URL, offer to clone it and run there.
+4. If the user has a local path, use that path.
+5. If the user has neither, offer either a disposable demo repo or the local `llm-research-kit` repo as the no-friction fallback.
+
+When the repo already has history, read `.researchloop/scratchpad/runs.jsonl` and `.researchloop/scratchpad/THREAD.md` first, then propose the next experiment from that evidence instead of defaulting to a sweep.
 
 ## 1. Give This Prompt To Your Agent
 
@@ -43,7 +53,7 @@ Install ResearchLoop, initialize the repo, inspect the project, then use the gen
 
 ## 3. Initialize a repo
 
-Run this inside a blank folder or inside an existing ML repo:
+Run this inside a blank folder, an existing ML repo, or a target research dir:
 
 ```bash
 researchloop init --agent codex

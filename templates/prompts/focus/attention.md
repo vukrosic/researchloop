@@ -4,7 +4,7 @@ Your goal is to test attention-related changes while keeping the rest of the loo
 
 Use this order:
 
-1. Freeze the baseline model and metric.
+1. Read the repo's run history, then freeze the baseline model and metric.
 2. Change one attention-related setting at a time.
 3. Keep data, optimizer, and evaluation fixed.
 4. Measure the effect quickly.

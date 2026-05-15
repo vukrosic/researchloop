@@ -4,7 +4,7 @@ Your goal is to explore small architecture changes without losing the baseline.
 
 Use this order:
 
-1. Lock the current baseline and metric.
+1. Read the repo's run history and lock the current baseline and metric.
 2. Make one architecture change at a time.
 3. Prefer the smallest change that can plausibly matter.
 4. Keep data, evaluation, and training loop fixed.

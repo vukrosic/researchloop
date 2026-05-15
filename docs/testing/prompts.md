@@ -2,7 +2,7 @@
 
 Purpose:
 
-Make sure the generated prompts stay clean for each supported agent.
+Make sure the generated prompt stays clean and the focus overlays still work.
 
 ## Commands
 
@@ -12,10 +12,10 @@ npm run test:prompts
 
 ## Checks
 
-- `codex` prompt includes the goal and the durable working-memory instructions.
-- `claude-code` prompt includes the autonomy rule and the append-only log guidance.
-- `hermes` prompt includes the orchestration language.
-- `generic` prompt still works as the fallback.
+- `researchloop` prompt includes the goal and the durable working-memory instructions.
+- the prompt includes the repo-memory and experiment-history instructions.
+- the prompt includes the target-selection fallback wording.
+- the focus overlays still append cleanly.
 - No prompt contains the raw `{{GOAL}}` placeholder.
 
 ## Why It Matters

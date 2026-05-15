@@ -1,13 +1,13 @@
 # Hyperparameter Optimization Playbook
 
-Your goal is to test the cheapest high-signal hyperparameter changes first.
+Your goal is to test one history-backed hyperparameter change at a time, not to default to a sweep.
 
 Use this order:
 
-1. Establish the current baseline exactly as it exists.
-2. Sweep learning rate before changing architecture.
-3. Hold data, sequence length, batch size, and evaluation constant.
-4. Change one knob at a time.
+1. Read the repo's run history first and confirm the current baseline exactly as it exists.
+2. If the history suggests tuning is the bottleneck, change one knob at a time.
+3. Keep data, sequence length, batch size, and evaluation constant.
+4. Prefer the knob the history points to instead of starting with learning rate by default.
 5. Record every run in `.researchloop/scratchpad/runs.jsonl`.
 
 Useful hyperparameters to try:
