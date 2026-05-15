@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Research Loop - Autonomous AI Research, in one prompt</title>
+    <meta
+      name="description"
+      content="A simple landing page for an npm-delivered AI research assistant that designs experiments, patches repos, and keeps a clean experiment log."
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #070b0f;
+        --bg-2: #0b1218;
+        --panel: #101820;
+        --panel-2: #0d151c;
+        --line: rgba(255, 255, 255, 0.1);
+        --text: #edf3f8;
+        --muted: #9ca8b3;
+        --soft: #c7d0d8;
+        --accent: #62d6a6;
+        --accent-2: #71a7ff;
+        --warning: #f6c177;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        --radius: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 18%),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          var(--bg);
+        background-size: auto, 64px 64px, 64px 64px, auto;
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      .announcement {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--line);
+        color: var(--soft);
+        font-size: 13px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .announcement strong {
+        color: var(--warning);
+        font-weight: 600;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 24px;
+        padding: 20px 0;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border: 1px solid rgba(98, 214, 166, 0.3);
+        border-radius: 10px;
+        background:
+          linear-gradient(135deg, rgba(98, 214, 166, 0.15), rgba(113, 167, 255, 0.15)),
+          #091118;
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        font-size: 18px;
+      }
+
+      nav {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      nav a:hover {
+        color: var(--text);
+      }
+
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 0 15px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        cursor: pointer;
+        transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(98, 214, 166, 0.32);
+        background: rgba(255, 255, 255, 0.07);
+      }
+
+      .button.primary {
+        background: linear-gradient(135deg, rgba(98, 214, 166, 0.2), rgba(113, 167, 255, 0.2));
+        border-color: rgba(98, 214, 166, 0.32);
+      }
+
+      .button.secondary {
+        color: var(--soft);
+      }
+
+      .hero {
+        padding: 40px 0 18px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 24px;
+        align-items: center;
+        min-height: calc(100vh - 132px);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(98, 214, 166, 0.24);
+        border-radius: 999px;
+        padding: 7px 12px;
+        color: var(--accent);
+        background: rgba(98, 214, 166, 0.07);
+        font-size: 13px;
+      }
+
+      h1 {
+        margin: 18px 0 14px;
+        font-size: clamp(3rem, 5vw, 4.8rem);
+        line-height: 0.96;
+        letter-spacing: 0;
+        max-width: 12ch;
+      }
+
+      .lede {
+        max-width: 56ch;
+        color: var(--soft);
+        font-size: 18px;
+        line-height: 1.6;
+        margin: 0 0 24px;
+      }
+
+      .hero-note {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 18px;
+        padding: 9px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--soft);
+        font-size: 14px;
+      }
+
+      .hero-note strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .terminal {
+        display: grid;
+        gap: 0;
+      }
+
+      .terminal-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(0, 0, 0, 0.14);
+      }
+
+      .dots {
+        display: flex;
+        gap: 8px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .dot:nth-child(1) {
+        background: #ff6b6b;
+      }
+
+      .dot:nth-child(2) {
+        background: #f6c177;
+      }
+
+      .dot:nth-child(3) {
+        background: #62d6a6;
+      }
+
+      .terminal-title {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .terminal-body {
+        padding: 18px;
+        background: linear-gradient(180deg, rgba(6, 10, 14, 0.4), rgba(6, 10, 14, 0.8));
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.65;
+        color: #dde6ed;
+      }
+
+      .prompt {
+        display: grid;
+        gap: 14px;
+      }
+
+      .prompt-label {
+        color: var(--muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .prompt-box {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 16px;
+      }
+
+      .prompt-box pre {
+        max-height: 350px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .inline-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .section {
+        padding: 48px 0;
+      }
+
+      .section-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 18px;
+        margin-bottom: 20px;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        font-size: clamp(1.6rem, 2.4vw, 2.4rem);
+        line-height: 1.05;
+      }
+
+      .section-heading p {
+        margin: 0;
+        max-width: 54ch;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .tool-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .proof-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .tool {
+        min-height: 84px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .tool span:first-child {
+        color: var(--soft);
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .tool span:last-child {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .proof-item {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .proof-item strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--soft);
+        font-size: 15px;
+      }
+
+      .proof-item p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .step {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 16px;
+      }
+
+      .step-no {
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+
+      .step h3 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+
+      .step p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .step code {
+        display: block;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(0, 0, 0, 0.22);
+        color: #d8e5ee;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      .mutate-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .mutate-item {
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .mutate-item h3 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+
+      .mutate-item p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .cta-band {
+        padding: 24px 0 72px;
+      }
+
+      .cta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 18px;
+        padding: 22px;
+        border: 1px solid rgba(98, 214, 166, 0.24);
+        border-radius: 18px;
+        background:
+          linear-gradient(135deg, rgba(98, 214, 166, 0.13), rgba(113, 167, 255, 0.12)),
+          rgba(255, 255, 255, 0.03);
+      }
+
+      .cta h2 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .cta p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      footer {
+        padding: 0 0 28px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .copy-state {
+        min-width: 86px;
+        text-align: center;
+        color: var(--accent);
+        font-size: 13px;
+      }
+
+      @media (max-width: 980px) {
+        .hero-grid,
+        .section-heading,
+        .cta {
+          grid-template-columns: 1fr;
+          flex-direction: column;
+          align-items: start;
+        }
+
+        .tool-row,
+        .proof-grid,
+        .steps,
+        .mutate-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 700px) {
+        .shell {
+          width: min(100% - 24px, 1180px);
+        }
+
+        header {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        nav {
+          flex-wrap: wrap;
+        }
+
+        h1 {
+          max-width: 100%;
+        }
+
+        .hero-grid {
+          min-height: auto;
+          padding-bottom: 20px;
+        }
+
+        .tool-row,
+        .proof-grid,
+        .steps,
+        .mutate-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .cta {
+          padding: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="announcement">
+      <strong>Now in preview</strong>
+      <span>npm-delivered AI research for people who want experiments, not hand-waving. MacBook-tested.</span>
+    </div>
+
+    <div class="shell">
+      <header>
+        <a class="brand" href="#top" aria-label="Research Loop home">
+          <span class="brand-mark">R</span>
+          <span>Research Loop</span>
+        </a>
+
+        <nav aria-label="Primary">
+          <a href="#how-it-works">How it works</a>
+          <a href="#prompt">Prompt</a>
+          <a href="#mutates">What it changes</a>
+          <a href="#install">Install</a>
+        </nav>
+
+        <div class="nav-actions">
+          <button class="button secondary" id="copyPromptTop" type="button">Copy prompt</button>
+          <a class="button primary" href="#install">Get started</a>
+        </div>
+      </header>
+
+      <main id="top">
+        <section class="hero">
+          <div class="hero-grid">
+            <div>
+              <span class="eyebrow">Your autonomous AI research engineer</span>
+              <h1>Automated AI research.</h1>
+              <p class="lede">
+                Research Loop is for humans who want to scope and review, while a pile of agents handle the
+                experiments autonomously. The front page stays light on purpose.
+              </p>
+              <div class="hero-note"><strong>Humans scope. Agents run.</strong><span>Review the outputs locally.</span></div>
+
+              <div class="hero-actions">
+                <button class="button primary" id="copyPromptHero" type="button">Copy agent prompt</button>
+                <button class="button" id="copyInstallHero" type="button">Copy npm install</button>
+              </div>
+
+              <div class="meta-row">
+                <span class="meta-pill">Cursor</span>
+                <span class="meta-pill">Claude Code</span>
+                <span class="meta-pill">OpenAI Codex</span>
+                <span class="meta-pill">MacBook MPS verified</span>
+                <span class="meta-pill">Open source core</span>
+              </div>
+            </div>
+
+            <div class="panel terminal">
+              <div class="terminal-bar">
+                <div class="dots" aria-hidden="true">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
+                <div class="terminal-title">Terminal preview</div>
+              </div>
+              <div class="terminal-body">
+                <pre>npm install -g researchloop
+researchloop init --agent codex
+researchloop goal "lower validation loss"
+researchloop idea --write
+researchloop inspect
+researchloop prompt
+researchloop record --id first-run --status complete --metric val_loss=2.31
+researchloop report</pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="proof">
+          <div class="section-heading">
+            <div>
+              <h2>Verified locally.</h2>
+            </div>
+            <p>
+              Placeholder: the install path and the first research loop work on this MacBook.
+            </p>
+          </div>
+
+          <div class="proof-grid">
+            <article class="proof-item">
+              <strong>Placeholder</strong>
+              <p>Install, init, goal, idea, prompt, record, compare.</p>
+            </article>
+            <article class="proof-item">
+              <strong>Placeholder</strong>
+              <p>Small local repo fixtures keep the setup path honest.</p>
+            </article>
+            <article class="proof-item">
+              <strong>Placeholder</strong>
+              <p>Real runs are logged in the dashboard and ledger.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="how-it-works">
+          <div class="section-heading">
+            <div>
+              <h2>Workflow.</h2>
+            </div>
+            <p>
+              Placeholder: the agent does the work, the human reviews and scopes.
+            </p>
+          </div>
+
+          <div class="steps">
+            <article class="step">
+              <div class="step-no">01</div>
+              <h3>Scope</h3>
+              <p>Placeholder: humans define the goal and review the plan.</p>
+              <code>researchloop goal "lower validation loss"</code>
+            </article>
+
+            <article class="step">
+              <div class="step-no">02</div>
+              <h3>Agents</h3>
+              <p>Placeholder: agents generate experiments and run them autonomously.</p>
+              <code>researchloop prompt --focus architecture</code>
+            </article>
+
+            <article class="step">
+              <div class="step-no">03</div>
+              <h3>Review</h3>
+              <p>Placeholder: humans inspect the results after the agents finish.</p>
+              <code>researchloop dashboard</code>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="prompt">
+          <div class="section-heading">
+            <div>
+              <h2>Copy this prompt into your agent.</h2>
+            </div>
+            <p>
+              Placeholder: use the prompt to let one human steer many agents.
+            </p>
+          </div>
+
+          <div class="prompt panel">
+            <div class="terminal-bar">
+              <div class="terminal-title">Agent prompt</div>
+              <div class="inline-actions">
+                <button class="button" id="copyPromptBody" type="button">Copy prompt</button>
+                <div class="copy-state" id="promptState">Ready</div>
+              </div>
+            </div>
+            <div class="terminal-body prompt-box">
+              <pre id="promptText"></pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="mutates">
+          <div class="section-heading">
+            <div>
+              <h2>What it changes</h2>
+            </div>
+            <p>
+              Placeholder: prompts, configs, data, benchmarks, logs, dashboard.
+            </p>
+          </div>
+
+          <div class="mutate-grid">
+            <article class="mutate-item">
+              <h3>Prompts</h3>
+              <p>Placeholder.</p>
+            </article>
+            <article class="mutate-item">
+              <h3>Configs</h3>
+              <p>Placeholder.</p>
+            </article>
+            <article class="mutate-item">
+              <h3>Data</h3>
+              <p>Placeholder.</p>
+            </article>
+            <article class="mutate-item">
+              <h3>Benchmarks</h3>
+              <p>Placeholder.</p>
+            </article>
+            <article class="mutate-item">
+              <h3>Logs</h3>
+              <p>Placeholder.</p>
+            </article>
+            <article class="mutate-item">
+              <h3>Dashboard</h3>
+              <p>Local only. No auth. No cloud.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="cta-band" id="install">
+          <div class="cta">
+            <div>
+              <h2>Ready to let the agent run the first experiment?</h2>
+              <p>Placeholder: install locally, paste the prompt, let the agents work, then review the dashboard.</p>
+            </div>
+            <div class="inline-actions">
+              <button class="button primary" id="copyInstallBottom" type="button">Copy npm install</button>
+              <button class="button" id="copyPromptBottom" type="button">Copy prompt</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        Humans scope. Agents run. The rest lives in the dashboard and the repo.
+      </footer>
+    </div>
+
+    <script>
+      const installText = "npm install -g researchloop";
+      const promptText = `You are an autonomous research engineer.
+Humans scope the goal and review the output.
+Agents run the experiments.
+
+1. Read the repo.
+2. Propose a few small experiments.
+3. Run the smallest useful one.
+4. Record the result.
+5. Keep going.`;
+      const promptState = document.getElementById("promptState");
+      const promptTextNode = document.getElementById("promptText");
+      promptTextNode.textContent = promptText;
+
+      async function copyText(text, statusNode) {
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const temp = document.createElement("textarea");
+            temp.value = text;
+            temp.setAttribute("readonly", "");
+            temp.style.position = "fixed";
+            temp.style.left = "-9999px";
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand("copy");
+            document.body.removeChild(temp);
+          }
+          if (statusNode) {
+            statusNode.textContent = "Copied";
+            window.setTimeout(() => {
+              statusNode.textContent = "Ready";
+            }, 1600);
+          }
+        } catch (error) {
+          if (statusNode) {
+            statusNode.textContent = "Copy failed";
+          }
+          console.error(error);
+        }
+      }
+
+      function bindCopy(id, text) {
+        const node = document.getElementById(id);
+        if (!node) {
+          return;
+        }
+        node.addEventListener("click", () => copyText(text, promptState));
+      }
+
+      bindCopy("copyPromptTop", promptText);
+      bindCopy("copyPromptHero", promptText);
+      bindCopy("copyPromptBody", promptText);
+      bindCopy("copyPromptBottom", promptText);
+      bindCopy("copyInstallHero", installText);
+      bindCopy("copyInstallBottom", installText);
+    </script>
+  </body>
+</html>

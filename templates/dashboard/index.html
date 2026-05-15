@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ResearchLoop Dashboard</title>
+    <meta
+      name="description"
+      content="Local dashboard for ResearchLoop experiment tracking. No auth, no accounts, localhost only."
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #071016;
+        --panel: #0d171f;
+        --panel-2: #101b25;
+        --line: rgba(255, 255, 255, 0.09);
+        --text: #edf3f8;
+        --muted: #9ba7b2;
+        --soft: #cad4dc;
+        --accent: #62d6a6;
+        --accent-2: #71a7ff;
+        --danger: #ff8b8b;
+        --warning: #f6c177;
+        --radius: 14px;
+        --shadow: 0 20px 70px rgba(0, 0, 0, 0.33);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          var(--bg);
+        background-size: auto, 72px 72px, 72px 72px, auto;
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .shell {
+        width: min(1280px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0 32px;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(98, 214, 166, 0.26);
+        color: var(--accent);
+        background: linear-gradient(135deg, rgba(98, 214, 166, 0.13), rgba(113, 167, 255, 0.13));
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.2;
+      }
+
+      .brand p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 13px;
+        text-align: right;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .top-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 16px;
+        align-items: start;
+        margin-bottom: 16px;
+      }
+
+      .secondary-grid {
+        display: grid;
+        grid-template-columns: 1fr 0.95fr;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 16px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-head h2 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+
+      .panel-body {
+        padding: 16px;
+      }
+
+      .goal-title {
+        margin: 6px 0 12px;
+        font-size: clamp(1.6rem, 2vw, 2.3rem);
+        line-height: 1.02;
+        max-width: 18ch;
+      }
+
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.035);
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      .pill strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--soft);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .stat {
+        padding: 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
+        min-height: 94px;
+      }
+
+      .stat .label {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .stat .value {
+        margin-top: 8px;
+        font-size: 1.35rem;
+        font-weight: 700;
+        line-height: 1.08;
+      }
+
+      .stat .sub {
+        margin-top: 6px;
+        color: var(--soft);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .sparkline-wrap {
+        display: grid;
+        gap: 12px;
+      }
+
+      .chart {
+        width: 100%;
+        height: 220px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .chart-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .table-wrap {
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 860px;
+      }
+
+      th,
+      td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      td {
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      .best {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .worst {
+        color: var(--danger);
+        font-weight: 600;
+      }
+
+      .empty {
+        color: var(--muted);
+        padding: 10px 0;
+        font-size: 13px;
+      }
+
+      .footer {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 1100px) {
+        .top-grid,
+        .secondary-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="brand">
+          <div class="brand-mark">R</div>
+          <div>
+            <h1>ResearchLoop Dashboard</h1>
+            <p>Local experiment tracking for AI research repos.</p>
+          </div>
+        </div>
+        <div class="status" id="statusText">Loading state...</div>
+      </header>
+
+      <section class="top-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Research goal</h2>
+            <span class="pill" id="goalMetricPill">Metric: loading</span>
+          </div>
+          <div class="panel-body">
+            <div class="goal-title" id="goalTitle">Loading…</div>
+            <div class="meta-row" id="goalMeta"></div>
+            <pre id="goalBody"></pre>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Overview</h2>
+            <span class="pill" id="repoPill">Localhost only</span>
+          </div>
+          <div class="panel-body">
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Runs</div>
+                <div class="value" id="statRuns">0</div>
+                <div class="sub">All recorded entries in runs.jsonl</div>
+              </div>
+              <div class="stat">
+                <div class="label">Complete</div>
+                <div class="value" id="statComplete">0</div>
+                <div class="sub">Runs marked complete or completed</div>
+              </div>
+              <div class="stat">
+                <div class="label">Best</div>
+                <div class="value" id="statBest">-</div>
+                <div class="sub" id="statBestSub">No metric yet</div>
+              </div>
+              <div class="stat">
+                <div class="label">Latest</div>
+                <div class="value" id="statLatest">-</div>
+                <div class="sub" id="statLatestSub">Waiting for the first run</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="secondary-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Metric trend</h2>
+            <span class="pill" id="trendMetric">No metric selected</span>
+          </div>
+          <div class="panel-body sparkline-wrap">
+            <div class="chart-label">
+              <span id="trendLabel">No numeric metric yet.</span>
+              <span id="trendRange"></span>
+            </div>
+            <div id="chartMount"></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Repo context</h2>
+            <span class="pill" id="repoType">Detecting</span>
+          </div>
+          <div class="panel-body">
+            <div class="meta-row" id="repoMeta"></div>
+            <pre id="planText"></pre>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Runs</h2>
+          <span class="pill" id="runHint">Loading</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Status</th>
+                <th>Primary metric</th>
+                <th>Time</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="runsBody">
+              <tr>
+                <td colspan="5" class="empty">Loading runs…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="footer">
+        No auth. No accounts. Served from localhost and driven by `.researchloop/`.
+      </div>
+    </div>
+
+    <script>
+      const stateUrl = "/api/state";
+      let latestState = null;
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatTime(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleString();
+      }
+
+      function metricFromRun(run, key) {
+        if (!run || !run.metrics || key == null) return "-";
+        const value = run.metrics[key];
+        return Number.isFinite(Number(value)) ? Number(value).toFixed(4) : String(value);
+      }
+
+      function renderPills(items) {
+        return items
+          .filter(Boolean)
+          .map((item) => `<span class="pill">${item}</span>`)
+          .join("");
+      }
+
+      function sparkline(series, preferHigher) {
+        if (!series || !series.length) {
+          return '<div class="empty">No numeric metric data yet.</div>';
+        }
+
+        const width = 860;
+        const height = 220;
+        const pad = 20;
+        const values = series.map((point) => Number(point.value));
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const range = max - min || 1;
+        const points = values
+          .map((value, index) => {
+            const x = pad + ((width - pad * 2) * (series.length === 1 ? 0.5 : index / (series.length - 1)));
+            const y = height - pad - ((value - min) / range) * (height - pad * 2);
+            return `${x},${y}`;
+          })
+          .join(" ");
+
+        const marker = preferHigher ? "higher is better" : "lower is better";
+        const last = series[series.length - 1];
+        return `
+          <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Metric sparkline">
+            <defs>
+              <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#62d6a6" />
+                <stop offset="100%" stop-color="#71a7ff" />
+              </linearGradient>
+            </defs>
+            <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="rgba(255,255,255,0.08)" />
+            <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="rgba(255,255,255,0.08)" />
+            <polyline points="${points}" fill="none" stroke="url(#lineGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="${width - pad}" cy="${height - pad - ((Number(last.value) - min) / range) * (height - pad * 2)}" r="5" fill="#62d6a6" />
+            <text x="${pad}" y="${pad - 4}" fill="rgba(255,255,255,0.55)" font-size="12">${marker}</text>
+          </svg>
+        `;
+      }
+
+      function renderRuns(state) {
+        const metricKey = state.primaryMetric || "";
+        const bestId = state.summary?.bestRun?.run?.id;
+        const worstId = state.summary?.worstRun?.run?.id;
+        const rows = (state.runs || []).filter((run) => !run.parse_error);
+
+        if (!rows.length) {
+          document.getElementById("runsBody").innerHTML =
+            '<tr><td colspan="5" class="empty">No runs recorded yet. Use <code>researchloop record</code> after the next experiment.</td></tr>';
+          return;
+        }
+
+        const html = rows
+          .slice()
+          .reverse()
+          .map((run) => {
+            const isBest = bestId && run.id === bestId;
+            const isWorst = worstId && run.id === worstId;
+            const metricValue = metricFromRun(run, metricKey);
+            const metricClass = isBest ? "best" : isWorst ? "worst" : "";
+            const metrics = run.metrics || {};
+            const metricSummary = metricKey
+              ? `${metricKey}: ${metricValue}`
+              : Object.entries(metrics)
+                  .slice(0, 3)
+                  .map(([key, value]) => `${key}=${value}`)
+                  .join(", ");
+            const note = run.notes ? escapeHtml(run.notes) : "-";
+            return `
+              <tr>
+                <td><strong>${escapeHtml(run.id || "-")}</strong></td>
+                <td>${escapeHtml(run.status || "-")}</td>
+                <td class="${metricClass}">${escapeHtml(metricSummary || "-")}</td>
+                <td>${escapeHtml(formatTime(run.timestamp))}</td>
+                <td>${note}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        document.getElementById("runsBody").innerHTML = html;
+      }
+
+      function render(state) {
+        latestState = state;
+        const goal = state.goal || {};
+        const summary = state.summary || {};
+        const repoProfile = state.repoProfile || {};
+        const plan = state.plan || {};
+
+        document.getElementById("statusText").textContent =
+          `Updated ${formatTime(state.generatedAt)} · ${summary.totalRuns || 0} runs`;
+        document.getElementById("repoPill").textContent = repoProfile.cwd ? "Repo loaded" : "Repo unknown";
+        document.getElementById("repoType").textContent = Array.isArray(repoProfile.adapters)
+          ? repoProfile.adapters.join(", ")
+          : "generic";
+
+        document.getElementById("goalTitle").textContent = goal.goal || "Set a research goal with `researchloop goal`.";
+        document.getElementById("goalBody").textContent = goal.raw || "No goal file found yet.";
+        document.getElementById("goalMetricPill").textContent = goal.metric
+          ? `Metric: ${goal.metric}`
+          : "Metric: not set";
+
+        const goalMeta = [];
+        if (goal.direction) goalMeta.push(`<span class="pill">Direction: <strong>${escapeHtml(goal.direction)}</strong></span>`);
+        if (goal.baseline) goalMeta.push(`<span class="pill">Baseline: <strong>${escapeHtml(goal.baseline)}</strong></span>`);
+        if (goal.evaluation) goalMeta.push(`<span class="pill">Eval: <strong>${escapeHtml(goal.evaluation)}</strong></span>`);
+        document.getElementById("goalMeta").innerHTML = renderPills(goalMeta);
+
+        document.getElementById("statRuns").textContent = summary.totalRuns || 0;
+        document.getElementById("statComplete").textContent = summary.completeRuns || 0;
+
+        if (summary.bestRun) {
+          document.getElementById("statBest").textContent = metricKeyLabel(state.primaryMetric, summary.bestRun.value);
+          document.getElementById("statBestSub").textContent = `${summary.bestRun.run.id} · ${formatTime(summary.bestRun.run.timestamp)}`;
+        } else {
+          document.getElementById("statBest").textContent = "-";
+          document.getElementById("statBestSub").textContent = "No metric data yet";
+        }
+
+        if (summary.latestRun) {
+          document.getElementById("statLatest").textContent = summary.latestRun.id || "-";
+          document.getElementById("statLatestSub").textContent = `${summary.latestRun.status || "-"} · ${formatTime(summary.latestRun.timestamp)}`;
+        } else {
+          document.getElementById("statLatest").textContent = "-";
+          document.getElementById("statLatestSub").textContent = "Waiting for the first run";
+        }
+
+        document.getElementById("planText").textContent = plan.raw || "No plan file yet.";
+        document.getElementById("repoMeta").innerHTML = renderPills([
+          repoProfile.cwd ? `<strong>Repo:</strong> ${escapeHtml(repoProfile.cwd)}` : "",
+          Array.isArray(repoProfile.package_files) && repoProfile.package_files.length
+            ? `<strong>Packages:</strong> ${escapeHtml(repoProfile.package_files.join(", "))}`
+            : "",
+          repoProfile.git_branch ? `<strong>Branch:</strong> ${escapeHtml(repoProfile.git_branch)}` : "",
+        ]);
+
+        document.getElementById("trendMetric").textContent = state.primaryMetric
+          ? `Metric: ${state.primaryMetric}`
+          : "No metric selected";
+        document.getElementById("trendLabel").textContent = state.primaryMetric
+          ? `Tracking ${state.primaryMetric} across recorded runs.`
+          : "No numeric metric found yet.";
+        document.getElementById("trendRange").textContent = summary.series && summary.series.length
+          ? `${summary.series.length} points`
+          : "";
+        document.getElementById("chartMount").innerHTML = sparkline(summary.series, state.preferHigher);
+
+        document.getElementById("runHint").textContent = summary.parseErrors
+          ? `${summary.parseErrors} parse errors`
+          : `${summary.totalRuns || 0} entries`;
+
+        renderRuns(state);
+      }
+
+      function metricKeyLabel(metricKey, value) {
+        if (!metricKey) return "-";
+        return `${metricKey}: ${Number(value).toFixed(4)}`;
+      }
+
+      async function refresh() {
+        try {
+          const res = await fetch(stateUrl, { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const state = await res.json();
+          render(state);
+        } catch (error) {
+          document.getElementById("statusText").textContent = `Failed to load state: ${error.message}`;
+        }
+      }
+
+      refresh();
+      setInterval(refresh, 3000);
+    </script>
+  </body>
+</html>

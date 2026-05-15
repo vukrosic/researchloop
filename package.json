@@ -1,0 +1,37 @@
+{
+  "name": "researchloop",
+  "version": "0.1.0",
+  "description": "Install an autonomous AI research harness for Codex, Claude Code, Hermes, and other coding agents.",
+  "type": "module",
+  "bin": {
+    "researchloop": "./bin/researchloop.js"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md",
+    "docs/getting-started.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "smoke": "node ./bin/researchloop.js --help",
+    "smoke:e2e": "bash ./scripts/smoke-e2e.sh",
+    "test:goal": "bash ./scripts/test-goal.sh",
+    "test:idea": "bash ./scripts/test-idea.sh",
+    "test:dashboard": "bash ./scripts/test-dashboard.sh",
+    "test:setup": "bash ./scripts/test-setup.sh",
+    "test:compare": "bash ./scripts/test-compare.sh",
+    "test:prompts": "bash ./scripts/test-prompts.sh",
+    "test:focus-prompts": "bash ./scripts/test-focus-prompts.sh",
+    "test:site": "bash ./scripts/test-site.sh"
+  },
+  "keywords": [
+    "ai-research",
+    "codex",
+    "claude-code",
+    "agent",
+    "experiments",
+    "ablation"
+  ],
+  "license": "MIT"
+}
