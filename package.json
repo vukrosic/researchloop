@@ -1,6 +1,6 @@
 {
   "name": "researchloop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Install an autonomous AI research harness for Codex, Claude Code, Hermes, and other coding agents.",
   "type": "module",
   "bin": {
@@ -9,6 +9,7 @@
   "files": [
     "bin",
     "templates",
+    "skills",
     "README.md",
     "docs/getting-started.md",
     "CHANGELOG.md"
@@ -21,6 +22,8 @@
     "test:dashboard": "bash ./scripts/test-dashboard.sh",
     "test:setup": "bash ./scripts/test-setup.sh",
     "test:compare": "bash ./scripts/test-compare.sh",
+    "test:run": "bash ./scripts/test-run.sh",
+    "test:scan-papers": "bash ./scripts/test-scan-papers.sh",
     "test:prompts": "bash ./scripts/test-prompts.sh",
     "test:focus-prompts": "bash ./scripts/test-focus-prompts.sh",
     "test:site": "bash ./scripts/test-site.sh"

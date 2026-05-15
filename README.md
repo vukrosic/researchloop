@@ -8,7 +8,17 @@ It installs a durable research harness into a machine learning repo so agents li
 
 This repo is both the product and the startup home base.
 
-## Install
+## Give This Prompt To Your Agent
+
+Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
+
+```text
+Set up an autonomous AI research environment in this repo using ResearchLoop.
+Read the ResearchLoop docs and the .researchloop/ files, inspect the repo, establish the baseline, propose a small set of experiments, run the smallest valid change first, record every result, compare runs, and keep the research loop moving.
+Use the package commands to manage goals, ideas, prompts, runs, comparisons, and reports.
+```
+
+Then install ResearchLoop:
 
 ```bash
 npm install -g researchloop
@@ -17,7 +27,8 @@ npm install -g researchloop
 Local development from this checkout:
 
 ```bash
-cd /Users/vukrosic/my-life/researchloop
+git clone https://github.com/vukrosic/researchloop.git
+cd researchloop
 npm link
 researchloop --help
 ```
@@ -26,16 +37,18 @@ researchloop --help
 
 ```bash
 researchloop init --agent codex
-researchloop goal "lower validation loss"
+researchloop goal "lower validation loss" --metric val_loss --direction lower \
+  --baseline "python train.py" --evaluation "python eval.py"
 researchloop inspect
+researchloop scan-papers --limit 10
 researchloop idea --write
 researchloop prompt --agent codex
-researchloop prompt --agent codex --focus hyperparameters
-researchloop dashboard
-researchloop doctor
-researchloop record --id first-run --status complete --metric val_loss=2.31 --note "First logged experiment"
+researchloop baseline
+researchloop run --id lr-3e-4 --command "python train.py --lr 3e-4"
 researchloop compare --metric val_loss --direction lower
 researchloop report
+researchloop dashboard
+researchloop doctor
 ```
 
 Then paste the generated prompt into the coding agent.
@@ -65,6 +78,7 @@ The package does not claim to magically train every model. It gives an agent the
 ```text
 bin/                  CLI entrypoint
 templates/            Harness, adapters, and agent prompts
+skills/               Downloadable agent research skill packs
 docs/site/            Landing page
 docs/research/        Local testing notes and research logs
 docs/competitors/     Competitor and adjacent-project research
@@ -116,17 +130,22 @@ The startup plan is in `docs/startup/`.
 - `researchloop init` creates `.researchloop/` and agent instruction files.
 - `researchloop goal` saves a durable research objective in `.researchloop/goal.md`.
 - `researchloop inspect` writes `.researchloop/repo-profile.json`.
-- `researchloop idea` generates ranked experiment ideas and can write an idea note.
+- `researchloop scan-papers` fetches relevant arXiv abstracts into `.researchloop/scratchpad/papers/`.
+- `researchloop idea` generates ranked experiment ideas, including paper-derived ones, and can write an idea note.
 - `researchloop prompt` prints an agent-ready autonomous research prompt, with optional focus playbooks.
-- `researchloop dashboard` starts a local localhost dashboard for experiment tracking.
-- `researchloop doctor` checks basic local tooling.
-- `researchloop record` appends a structured run result to `runs.jsonl`.
+- `researchloop baseline` runs the baseline command, parses the metric, and locks it into `goal.md` and `plan.md`.
+- `researchloop run` executes a training or eval command, streams the log, parses the metric, and records the run.
+- `researchloop record` appends a structured run result to `runs.jsonl` (use for manual rows).
 - `researchloop compare` ranks runs by a chosen metric.
 - `researchloop report` summarizes the run ledger.
+- `researchloop dashboard` starts a local localhost dashboard for experiment tracking.
+- `researchloop doctor` checks basic local tooling.
 - `npm run test:setup` runs the blank-repo and minimal-fixture setup checks.
 - `npm run test:compare` checks comparison output for a few recorded runs.
+- `npm run test:run` checks `run` and `baseline` against deterministic shell commands.
+- `npm run test:scan-papers` checks the arXiv scan path against a recorded XML fixture (no network).
 - `npm run test:goal` checks goal saving and prompt handoff.
-- `npm run test:idea` checks idea generation for a blank repo and an llm-research-kit-shaped repo.
+- `npm run test:idea` checks idea generation for a blank repo, an llm-research-kit-shaped repo, and a paper-augmented repo.
 - `npm run test:dashboard` checks the local dashboard server and API.
 - `npm run test:prompts` checks prompt templates for placeholder drift.
 - `npm run test:focus-prompts` checks the hyperparameter, architecture, and attention playbooks.
@@ -135,6 +154,8 @@ The startup plan is in `docs/startup/`.
 ## Open Source
 
 ResearchLoop should stay open source at the core. The npm package, prompts, adapters, and run ledger format should be inspectable and forkable.
+
+The package also ships optional skill packs under `skills/` so teams can copy the same research rules into Codex, Claude Code, or other agent-specific folders.
 
 Possible paid layers later:
 

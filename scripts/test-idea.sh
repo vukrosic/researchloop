@@ -30,4 +30,15 @@ grep -q "learning rate" /tmp/researchloop-idea-llm.log
 grep -q "d_model" /tmp/researchloop-idea-llm.log
 grep -q "n_layers" /tmp/researchloop-idea-llm.log
 
+tmp_papers="$(mktemp -d)"
+trap 'rm -rf "$tmp_blank" "$tmp_llm" "$tmp_papers"' EXIT
+node ./bin/researchloop.js init --agent codex --dir "$tmp_papers" >/tmp/researchloop-idea-papers-init.log
+node ./bin/researchloop.js goal --dir "$tmp_papers" "lower validation loss" --metric val_loss --direction lower >/tmp/researchloop-idea-papers-goal.log
+RESEARCHLOOP_ARXIV_FIXTURE="$(cd "$(dirname "$0")/.." && pwd)/examples/fixtures/arxiv-sample.xml" \
+  node ./bin/researchloop.js scan-papers --dir "$tmp_papers" --cache-dir "$(mktemp -d)" --limit 3 >/tmp/researchloop-idea-papers-scan.log
+node ./bin/researchloop.js idea --dir "$tmp_papers" >/tmp/researchloop-idea-papers.log
+grep -q "Read paper:" /tmp/researchloop-idea-papers.log
+grep -q "Efficient Learning Rate Schedules" /tmp/researchloop-idea-papers.log
+grep -q "arXiv 2503.12345v1" /tmp/researchloop-idea-papers.log
+
 echo "researchloop test:idea passed"

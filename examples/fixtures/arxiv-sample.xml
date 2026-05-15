@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title type="html">ArXiv Query: search_query=all:transformer&amp;sortBy=submittedDate</title>
+  <id>http://arxiv.org/api/example</id>
+  <updated>2026-05-15T12:00:00-04:00</updated>
+  <opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">2</opensearch:totalResults>
+  <entry>
+    <id>http://arxiv.org/abs/2503.12345v1</id>
+    <updated>2026-03-15T10:00:00Z</updated>
+    <published>2026-03-15T10:00:00Z</published>
+    <title>Efficient Learning Rate Schedules for Large Transformers</title>
+    <summary>  We propose a new learning rate schedule that improves validation loss
+on long-context language models without changing architecture.
+The method is a simple modification of cosine decay with two phases.
+  </summary>
+    <author>
+      <name>Alice Researcher</name>
+    </author>
+    <author>
+      <name>Bob Scientist</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2504.67890v2</id>
+    <updated>2026-04-20T08:00:00Z</updated>
+    <published>2026-04-20T08:00:00Z</published>
+    <title>Attention Variants for Better Generalization</title>
+    <summary>We compare attention mechanisms in transformer models and show
+that a hybrid attention pattern beats vanilla softmax attention on
+several benchmarks.</summary>
+    <author>
+      <name>Carol Engineer</name>
+    </author>
+  </entry>
+</feed>

@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -132,16 +134,37 @@ function walkFiles(cwd, maxDepth = 3) {
   return out;
 }
 
+function readSafe(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function depsMention(cwd, needle) {
+  const candidates = ["requirements.txt", "pyproject.toml", "setup.py", "uv.lock", "Pipfile"];
+  const needleLower = needle.toLowerCase();
+  for (const name of candidates) {
+    const text = readSafe(path.join(cwd, name)).toLowerCase();
+    if (text.includes(needleLower)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function detectRepo(cwd) {
   const files = walkFiles(cwd, 3);
-  const lower = files.map((file) => file.toLowerCase());
-  const has = (pattern) => lower.some((file) => file.includes(pattern));
+  const basenames = files.map((file) => path.basename(file));
+  const trainScriptPattern = /^(train|finetune|pretrain)[\w-]*\.py$/i;
+  const hasTrainScript = basenames.some((name) => trainScriptPattern.test(name));
 
   const adapters = ["generic"];
-  if (has("train.py") || has("train_") || has("pytorch") || has("torch")) {
+  if (hasTrainScript || depsMention(cwd, "torch")) {
     adapters.push("pytorch");
   }
-  if (has("trainer") || has("transformers") || has("huggingface")) {
+  if (depsMention(cwd, "transformers") || depsMention(cwd, "huggingface_hub")) {
     adapters.push("huggingface");
   }
   if (files.includes("train_llm.py") && files.includes("configs/llm_config.py")) {
@@ -154,9 +177,9 @@ function detectRepo(cwd) {
     git_branch: run("git branch --show-current", cwd) || null,
     git_status_short: run("git status --short", cwd) || null,
     package_files: existsAny(cwd, ["package.json", "pyproject.toml", "requirements.txt", "uv.lock"]),
-    candidate_train_files: files.filter((file) => /(^|\/)(train|finetune|pretrain).*\.py$/i.test(file)).slice(0, 30),
-    candidate_eval_files: files.filter((file) => /(^|\/)(eval|evaluate|benchmark).*\.py$/i.test(file)).slice(0, 30),
-    candidate_config_files: files.filter((file) => /(^|\/|_)(config|cfg)[^/]*\.(py|js|ts|json|yaml|yml|toml)$|\.ya?ml$|\.toml$|\.json$/i.test(file)).slice(0, 40),
+    candidate_train_files: files.filter((file) => /(^|\/)(train|finetune|pretrain)[\w-]*\.py$/i.test(file)).slice(0, 30),
+    candidate_eval_files: files.filter((file) => /(^|\/)(eval|evaluate|benchmark)[\w-]*\.py$/i.test(file)).slice(0, 30),
+    candidate_config_files: files.filter((file) => /(^|\/|_)(config|cfg)[\w-]*\.(py|js|ts|json|yaml|yml|toml)$/i.test(file)).slice(0, 40),
     candidate_log_dirs: existsAny(cwd, ["logs", "runs", "wandb", "mlruns", "checkpoints", "plots"]),
     adapters: [...new Set(adapters)],
   };
@@ -715,6 +738,45 @@ function renderIdeasMarkdown(profile, goalText, ideas) {
   return lines.join("\n");
 }
 
+function readPaperNotes(cwd) {
+  const papersDir = path.join(cwd, ".researchloop", "scratchpad", "papers");
+  if (!fs.existsSync(papersDir)) {
+    return [];
+  }
+  const out = [];
+  for (const entry of fs.readdirSync(papersDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const file = path.join(papersDir, entry.name);
+    const raw = fs.readFileSync(file, "utf8");
+    const titleMatch = raw.match(/^#\s+(.+?)\s*$/m);
+    const idMatch = raw.match(/^arXiv:\s*(.+?)\s*$/m);
+    out.push({
+      title: titleMatch ? titleMatch[1].trim() : entry.name.replace(/\.md$/, ""),
+      arxivId: idMatch ? idMatch[1].trim() : entry.name.replace(/\.md$/, ""),
+      file: path.relative(cwd, file),
+    });
+  }
+  return out;
+}
+
+function buildPaperIdeas(papers, goalText, startRank) {
+  const ideas = [];
+  let rank = startRank;
+  for (const paper of papers.slice(0, 5)) {
+    const shortTitle = paper.title.length > 60 ? `${paper.title.slice(0, 57)}...` : paper.title;
+    ideas.push({
+      rank,
+      title: `Read paper: ${shortTitle}`,
+      hypothesis: `arXiv ${paper.arxivId} may suggest a mechanism relevant to ${goalText || "the target metric"}.`,
+      change: `Read ${paper.file}, extract one concrete mechanism, and decide if it can be ported in one experiment.`,
+      killCriterion: "If the mechanism cannot be cleanly ported or has no reproducible result section, log the lesson and skip.",
+      whyNow: "Paper was fetched recently and is cheap to read before launching another sweep.",
+    });
+    rank += 1;
+  }
+  return ideas;
+}
+
 function cmdIdea() {
   const cwd = targetDir();
   const researchDir = path.join(cwd, ".researchloop");
@@ -722,6 +784,10 @@ function cmdIdea() {
   const goalText = option("--goal", "") || readGoalSummary(path.join(researchDir, "goal.md"));
   const profile = loadRepoProfile(cwd);
   const ideas = buildIdeaList(profile, goalText);
+  const papers = readPaperNotes(cwd);
+  if (papers.length) {
+    ideas.push(...buildPaperIdeas(papers, goalText, ideas.length + 1));
+  }
   const markdown = renderIdeasMarkdown(profile, goalText, ideas);
   process.stdout.write(`${markdown}\n`);
 
@@ -852,6 +918,422 @@ function cmdRecord() {
   console.log(`Recorded run: ${row.id}`);
 }
 
+function defaultMetricRegex(metricName) {
+  const escaped = metricName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`["']?${escaped}["']?\\s*[:=]\\s*["']?(-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)`, "gi");
+}
+
+function parseMetricFromOutput(output, metricName, customRegexSource) {
+  const regex = customRegexSource
+    ? new RegExp(customRegexSource, "gi")
+    : defaultMetricRegex(metricName);
+  let last = null;
+  let match;
+  while ((match = regex.exec(output)) !== null) {
+    last = match[1] !== undefined ? match[1] : match[0];
+  }
+  if (last !== null && Number.isFinite(Number(last))) {
+    return Number(last);
+  }
+  const lines = output.split("\n").map((line) => line.trim()).filter(Boolean);
+  for (let idx = lines.length - 1; idx >= 0; idx -= 1) {
+    try {
+      const obj = JSON.parse(lines[idx]);
+      if (obj && typeof obj === "object" && metricName in obj && Number.isFinite(Number(obj[metricName]))) {
+        return Number(obj[metricName]);
+      }
+    } catch {
+      // not JSON, skip
+    }
+  }
+  return null;
+}
+
+function spawnCommand(commandText, cwd, timeoutMs, logFile) {
+  return new Promise((resolve) => {
+    const child = spawn(commandText, { cwd, shell: true });
+    const chunks = [];
+    let timedOut = false;
+    const logStream = fs.createWriteStream(logFile);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // already gone
+      }
+    }, timeoutMs);
+    child.stdout.on("data", (data) => {
+      chunks.push(data);
+      process.stdout.write(data);
+      logStream.write(data);
+    });
+    child.stderr.on("data", (data) => {
+      chunks.push(data);
+      process.stderr.write(data);
+      logStream.write(data);
+    });
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      const message = `\nresearchloop: spawn error: ${err.message}\n`;
+      logStream.end(message);
+      resolve({
+        output: Buffer.concat(chunks).toString("utf8") + message,
+        exitCode: null,
+        timedOut,
+        spawnError: err.message,
+      });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      logStream.end();
+      resolve({
+        output: Buffer.concat(chunks).toString("utf8"),
+        exitCode: code,
+        timedOut,
+        spawnError: null,
+      });
+    });
+  });
+}
+
+function replaceOrAppendSection(text, heading, body) {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(^## ${escaped}\\s+)([\\s\\S]*?)(?=\\n## |\\n# |$)`, "mi");
+  if (pattern.test(text)) {
+    return text.replace(pattern, `$1${body}\n`);
+  }
+  const suffix = text.endsWith("\n") ? "" : "\n";
+  return `${text}${suffix}\n## ${heading}\n${body}\n`;
+}
+
+function updateGoalCurrentBest(cwd, metricName, value, runId) {
+  const goalFile = path.join(cwd, ".researchloop", "goal.md");
+  if (!fs.existsSync(goalFile)) {
+    return;
+  }
+  const raw = fs.readFileSync(goalFile, "utf8");
+  const body = `${metricName} = ${value} (run ${runId})`;
+  fs.writeFileSync(goalFile, replaceOrAppendSection(raw, "Current Best", body));
+}
+
+function updatePlanBaseline(cwd, metricName, value, runId) {
+  const planFile = path.join(cwd, ".researchloop", "plan.md");
+  if (!fs.existsSync(planFile)) {
+    return;
+  }
+  const raw = fs.readFileSync(planFile, "utf8");
+  const body = [
+    `- Baseline: ${metricName} = ${value} (run ${runId})`,
+    "- Best valid result: same as baseline",
+    "- Active family: none",
+    "- Running jobs: none",
+    "- Next action: design first experiment",
+  ].join("\n");
+  fs.writeFileSync(planFile, replaceOrAppendSection(raw, "Current State", body));
+}
+
+function readGoalFields(cwd) {
+  const goalFile = path.join(cwd, ".researchloop", "goal.md");
+  const raw = readTextIfExists(goalFile);
+  return {
+    goal: parseMarkdownSection(raw, "Goal") || "",
+    metric: parseMarkdownSection(raw, "Target Metric") || "",
+    direction: parseMarkdownSection(raw, "Direction") || "",
+    baseline: parseMarkdownSection(raw, "Baseline Command") || "",
+    evaluation: parseMarkdownSection(raw, "Evaluation Command") || "",
+  };
+}
+
+async function cmdRun(isBaseline) {
+  const cwd = targetDir();
+  const goalFields = readGoalFields(cwd);
+  const explicitCommand = option("--command", null);
+  let cmdText = explicitCommand && typeof explicitCommand === "string" ? explicitCommand : "";
+  if (!cmdText) {
+    cmdText = isBaseline
+      ? goalFields.baseline
+      : (goalFields.evaluation || goalFields.baseline);
+  }
+  if (!cmdText || cmdText.toLowerCase() === "unknown") {
+    console.error("No command to run.");
+    console.error("Set one via:");
+    console.error("  researchloop goal \"<text>\" --baseline \"python train.py\" --evaluation \"python eval.py\"");
+    console.error("Or pass --command directly.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const metricName = String(option("--metric", goalFields.metric || "val_loss")).trim() || "val_loss";
+  const customRegex = option("--regex", null);
+  const regexSource = customRegex && typeof customRegex === "string" ? customRegex : null;
+  const timeoutSec = Number(option("--timeout", 600));
+  const timeoutMs = Number.isFinite(timeoutSec) && timeoutSec > 0 ? timeoutSec * 1000 : 600000;
+
+  const prefix = isBaseline ? "baseline" : "run";
+  const id = String(option("--id", `${prefix}-${new Date().toISOString().replace(/[:.]/g, "-")}`));
+  const runDir = path.join(cwd, ".researchloop", "scratchpad", "runs", id);
+  ensureDir(runDir);
+  const logFile = path.join(runDir, "log.txt");
+
+  console.log(`researchloop ${prefix}`);
+  console.log(`command: ${cmdText}`);
+  console.log(`metric: ${metricName}`);
+  console.log(`timeout: ${timeoutMs / 1000}s`);
+  console.log(`log: ${path.relative(cwd, logFile)}`);
+  console.log("---");
+
+  const startedAt = new Date().toISOString();
+  const result = await spawnCommand(cmdText, cwd, timeoutMs, logFile);
+  const finishedAt = new Date().toISOString();
+
+  let status;
+  if (result.spawnError) {
+    status = "spawn_error";
+  } else if (result.timedOut) {
+    status = "timeout";
+  } else if (result.exitCode !== 0) {
+    status = "failed";
+  } else {
+    status = "complete";
+  }
+
+  const metrics = {};
+  const metricValue = parseMetricFromOutput(result.output, metricName, regexSource);
+  if (metricValue !== null) {
+    metrics[metricName] = metricValue;
+  }
+  if (status === "complete" && metricValue === null) {
+    status = "complete_no_metric";
+  }
+
+  const row = {
+    id,
+    timestamp: finishedAt,
+    started_at: startedAt,
+    status,
+    agent: `researchloop ${prefix}`,
+    command: cmdText,
+    exit_code: result.exitCode,
+    log: path.relative(cwd, logFile),
+    metrics,
+    notes: "",
+  };
+  const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+  ensureDir(path.dirname(ledger));
+  fs.appendFileSync(ledger, `${JSON.stringify(row)}\n`);
+
+  const thread = path.join(cwd, ".researchloop", "scratchpad", "THREAD.md");
+  ensureDir(path.dirname(thread));
+  const metricSuffix = metricValue !== null ? ` ${metricName}=${metricValue}` : "";
+  fs.appendFileSync(thread, `- ${finishedAt} ${prefix} ${id} status=${status}${metricSuffix}\n`);
+
+  console.log("---");
+  console.log(`status: ${status}`);
+  console.log(`exit_code: ${result.exitCode}`);
+  if (metricValue !== null) {
+    console.log(`${metricName}: ${metricValue}`);
+  } else {
+    console.log("metric: not parsed");
+  }
+  console.log(`recorded: ${id}`);
+
+  if (isBaseline && metricValue !== null) {
+    updateGoalCurrentBest(cwd, metricName, metricValue, id);
+    updatePlanBaseline(cwd, metricName, metricValue, id);
+    console.log("goal.md Current Best updated.");
+    console.log("plan.md Current State updated.");
+  }
+
+  if (status === "failed" || status === "timeout" || status === "spawn_error") {
+    process.exitCode = 1;
+  }
+}
+
+const ARXIV_API_URL = "http://export.arxiv.org/api/query";
+
+function arxivCacheDir() {
+  return path.join(os.homedir(), ".cache", "researchloop", "arxiv");
+}
+
+function arxivCacheKey(query, limit, since) {
+  return createHash("sha1")
+    .update(`${query}|${limit}|${since || ""}`)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+async function fetchArxivXml({ query, limit, since, cacheDir, offline }) {
+  const fixture = process.env.RESEARCHLOOP_ARXIV_FIXTURE;
+  if (fixture) {
+    return fs.readFileSync(fixture, "utf8");
+  }
+  ensureDir(cacheDir);
+  const key = arxivCacheKey(query, limit, since);
+  const cacheFile = path.join(cacheDir, `${key}.xml`);
+  if (fs.existsSync(cacheFile)) {
+    return fs.readFileSync(cacheFile, "utf8");
+  }
+  if (offline) {
+    throw new Error(`offline mode: no cache for query "${query}" (key=${key})`);
+  }
+  const params = new URLSearchParams({
+    search_query: query,
+    sortBy: "submittedDate",
+    sortOrder: "descending",
+    max_results: String(limit),
+  });
+  const url = `${ARXIV_API_URL}?${params.toString()}`;
+  const res = await fetch(url, { headers: { "User-Agent": "researchloop/0.2.0" } });
+  if (!res.ok) {
+    throw new Error(`arxiv fetch failed: HTTP ${res.status}`);
+  }
+  const xml = await res.text();
+  fs.writeFileSync(cacheFile, xml);
+  return xml;
+}
+
+function decodeXmlEntities(text) {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function extractXmlTag(block, tag) {
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const match = block.match(re);
+  return match ? decodeXmlEntities(match[1]).replace(/\s+/g, " ").trim() : "";
+}
+
+function parseArxivEntries(xml) {
+  const entries = [];
+  const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
+  let match;
+  while ((match = entryRe.exec(xml)) !== null) {
+    const block = match[1];
+    const idUrl = extractXmlTag(block, "id");
+    const arxivId = idUrl.replace(/^https?:\/\/arxiv\.org\/abs\//, "");
+    const authorBlocks = block.match(/<author>[\s\S]*?<\/author>/g) || [];
+    const authors = authorBlocks
+      .map((blk) => extractXmlTag(blk, "name"))
+      .filter(Boolean);
+    entries.push({
+      arxivId,
+      idUrl,
+      title: extractXmlTag(block, "title"),
+      summary: extractXmlTag(block, "summary"),
+      published: extractXmlTag(block, "published"),
+      updated: extractXmlTag(block, "updated"),
+      authors,
+    });
+  }
+  return entries;
+}
+
+function filterArxivBySince(entries, since) {
+  if (!since) return entries;
+  const sinceDate = new Date(since.length === 7 ? `${since}-01` : since);
+  if (Number.isNaN(sinceDate.getTime())) return entries;
+  return entries.filter((entry) => {
+    const date = new Date(entry.published);
+    return !Number.isNaN(date.getTime()) && date >= sinceDate;
+  });
+}
+
+function buildDefaultArxivQuery(goalFields, profile) {
+  const parts = [];
+  if (goalFields.goal) parts.push(goalFields.goal);
+  if (goalFields.metric) parts.push(goalFields.metric);
+  const adapters = (profile && profile.adapters) || [];
+  if (adapters.includes("huggingface")) parts.push("transformer");
+  if (adapters.includes("pytorch")) parts.push("deep learning");
+  const joined = parts.filter(Boolean).join(" ").slice(0, 200).trim();
+  return joined ? `all:${joined}` : "all:deep learning";
+}
+
+function renderPaperMarkdown(entry) {
+  const pubDate = entry.published ? entry.published.slice(0, 10) : "";
+  return [
+    `# ${entry.title || entry.arxivId}`,
+    "",
+    `arXiv: ${entry.arxivId}`,
+    `Published: ${pubDate}`,
+    `Authors: ${entry.authors.join(", ")}`,
+    `Link: ${entry.idUrl}`,
+    "",
+    "## Abstract",
+    "",
+    entry.summary,
+    "",
+    "## How to port this",
+    "",
+    "TODO. Fill in when the paper is read.",
+    "",
+  ].join("\n");
+}
+
+async function cmdScanPapers() {
+  const cwd = targetDir();
+  const goalFields = readGoalFields(cwd);
+  const profile = loadRepoProfile(cwd);
+  const explicitQuery = option("--query", null);
+  const query = explicitQuery && typeof explicitQuery === "string"
+    ? explicitQuery
+    : buildDefaultArxivQuery(goalFields, profile);
+  const limitRaw = Number(option("--limit", 10));
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(50, Math.floor(limitRaw)) : 10;
+  const sinceOpt = option("--since", null);
+  const since = sinceOpt && typeof sinceOpt === "string" ? sinceOpt : null;
+  const offline = hasFlag("--offline");
+  const cacheDirOpt = option("--cache-dir", null);
+  const cacheDir = cacheDirOpt && typeof cacheDirOpt === "string" ? cacheDirOpt : arxivCacheDir();
+
+  console.log("researchloop scan-papers");
+  console.log(`query: ${query}`);
+  console.log(`limit: ${limit}`);
+  if (since) console.log(`since: ${since}`);
+  console.log(`cache: ${cacheDir}`);
+
+  let xml;
+  try {
+    xml = await fetchArxivXml({ query, limit, since, cacheDir, offline });
+  } catch (err) {
+    console.error(`scan-papers failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  let entries = parseArxivEntries(xml);
+  entries = filterArxivBySince(entries, since);
+
+  const papersDir = path.join(cwd, ".researchloop", "scratchpad", "papers");
+  ensureDir(papersDir);
+  for (const entry of entries) {
+    const safeId = entry.arxivId.replace(/[/\\]/g, "_");
+    const file = path.join(papersDir, `${safeId}.md`);
+    fs.writeFileSync(file, renderPaperMarkdown(entry));
+  }
+
+  const thread = path.join(cwd, ".researchloop", "scratchpad", "THREAD.md");
+  ensureDir(path.dirname(thread));
+  fs.appendFileSync(
+    thread,
+    `- ${new Date().toISOString()} scan-papers query="${query.slice(0, 100)}" found=${entries.length}\n`
+  );
+
+  console.log("---");
+  console.log(`found: ${entries.length}`);
+  for (const entry of entries) {
+    const title = entry.title.length > 80 ? `${entry.title.slice(0, 77)}...` : entry.title;
+    console.log(`- ${entry.arxivId} ${title}`);
+  }
+  console.log(`papers written to: ${path.relative(cwd, papersDir)}`);
+}
+
 function cmdHelp() {
   console.log(`Research Loop
 
@@ -863,6 +1345,9 @@ Usage:
   researchloop prompt [--agent codex|claude-code|hermes|generic] [--goal TEXT] [--focus hyperparameters|architecture|attention]
   researchloop doctor [--dir PATH] [--python PATH]
   researchloop record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]
+  researchloop run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]
+  researchloop baseline [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]
+  researchloop scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   researchloop compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   researchloop dashboard [--dir PATH] [--host HOST] [--port PORT]
   researchloop report [--dir PATH]
@@ -871,30 +1356,43 @@ Research Loop installs docs, prompts, scratchpads, and experiment ledgers for au
 `);
 }
 
-if (hasFlag("--help") || command === "help") {
-  cmdHelp();
-} else if (command === "init") {
-  cmdInit();
-} else if (command === "goal") {
-  cmdGoal();
-} else if (command === "inspect") {
-  cmdInspect();
-} else if (command === "idea") {
-  cmdIdea();
-} else if (command === "prompt") {
-  cmdPrompt();
-} else if (command === "doctor") {
-  cmdDoctor();
-} else if (command === "record") {
-  cmdRecord();
-} else if (command === "compare") {
-  cmdCompare();
-} else if (command === "dashboard") {
-  cmdDashboard();
-} else if (command === "report") {
-  cmdReport();
-} else {
-  console.error(`Unknown command: ${command}`);
-  cmdHelp();
-  process.exitCode = 1;
+async function main() {
+  if (hasFlag("--help") || command === "help") {
+    cmdHelp();
+  } else if (command === "init") {
+    cmdInit();
+  } else if (command === "goal") {
+    cmdGoal();
+  } else if (command === "inspect") {
+    cmdInspect();
+  } else if (command === "idea") {
+    cmdIdea();
+  } else if (command === "prompt") {
+    cmdPrompt();
+  } else if (command === "doctor") {
+    cmdDoctor();
+  } else if (command === "record") {
+    cmdRecord();
+  } else if (command === "run") {
+    await cmdRun(false);
+  } else if (command === "baseline") {
+    await cmdRun(true);
+  } else if (command === "scan-papers") {
+    await cmdScanPapers();
+  } else if (command === "compare") {
+    cmdCompare();
+  } else if (command === "dashboard") {
+    cmdDashboard();
+  } else if (command === "report") {
+    cmdReport();
+  } else {
+    console.error(`Unknown command: ${command}`);
+    cmdHelp();
+    process.exitCode = 1;
+  }
 }
+
+main().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

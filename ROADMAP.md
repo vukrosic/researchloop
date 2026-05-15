@@ -16,12 +16,19 @@
 - Summarize run ledger with `researchloop report`.
 - Provide templates for Codex, Claude Code, Hermes, Cursor, PyTorch, Hugging Face, and generic repos.
 
+## Done (0.2.0)
+
+- `researchloop run` and `researchloop baseline` execute commands and parse metrics into the ledger.
+- `researchloop scan-papers` pulls arXiv abstracts for the goal and writes per-paper notes.
+- `researchloop idea` now surfaces paper-derived ideas alongside the adapter playbook.
+- Adapter detection no longer false-positives on filename substrings.
+
 ## Next Product Work
 
-- Add `researchloop idea` for creating an idea file with hypothesis, mechanism, command, metric, and kill criteria.
-- Add `researchloop run --smoke` only for repos with a known adapter.
-- Add `researchloop compare` to rank completed runs by metric.
-- Add a public demo repo that shows one full autonomous research loop.
+- `researchloop replay <run-id>` re-executes a stored run and flags reproducibility deltas.
+- `researchloop scan-github` for repos with similar training scripts.
+- `researchloop promote <run-id>` copies a winning config/diff into `winners/`.
+- Public demo repo that shows one full autonomous research loop end to end.
 
 ## Startup Work
 

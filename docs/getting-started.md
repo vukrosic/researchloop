@@ -9,7 +9,17 @@ The shortest way to think about it:
 - it creates a durable `.researchloop/` workspace
 - your AI agent uses that workspace to plan, run, compare, and record experiments
 
-## 1. Install
+## 1. Give This Prompt To Your Agent
+
+Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
+
+```text
+Set up an autonomous AI research environment in this repo using ResearchLoop.
+Read the ResearchLoop docs and the .researchloop/ files, inspect the repo, establish the baseline, propose a small set of experiments, run the smallest valid change first, record every result, compare runs, and keep the research loop moving.
+Use the package commands to manage goals, ideas, prompts, runs, comparisons, and reports.
+```
+
+## 2. Install
 
 From your own machine:
 
@@ -31,7 +41,7 @@ If you want to hand this to an AI agent, the simplest instruction is:
 Install ResearchLoop, initialize the repo, inspect the project, then use the generated prompt to start the research loop.
 ```
 
-## 2. Initialize a repo
+## 3. Initialize a repo
 
 Run this inside a blank folder or inside an existing ML repo:
 
@@ -64,7 +74,7 @@ researchloop init --agent hermes
 researchloop init --agent cursor
 ```
 
-## 3. Set the research goal
+## 4. Set the research goal
 
 Tell ResearchLoop what the agent should optimize:
 
@@ -80,7 +90,7 @@ researchloop goal "lower validation loss" --metric val_loss --direction lower
 
 That saves the objective into `.researchloop/goal.md`, which the agent and the prompt command can read later.
 
-## 4. Generate experiment ideas
+## 5. Generate experiment ideas
 
 ```bash
 researchloop idea --write
@@ -88,7 +98,7 @@ researchloop idea --write
 
 This prints a ranked list of small experiments for the current repo shape. For `llm-research-kit`, that usually means baseline checks, learning-rate sweeps, and tiny architecture changes. For a generic repo, it starts with finding the baseline and metric plumbing.
 
-## 5. Inspect the repo
+## 6. Inspect the repo
 
 ```bash
 researchloop inspect
@@ -102,7 +112,7 @@ This writes a repo profile into `.researchloop/repo-profile.json` and helps the 
 - log folders
 - likely adapters
 
-## 6. Generate the agent prompt
+## 7. Generate the agent prompt
 
 ```bash
 researchloop prompt --agent codex
@@ -127,6 +137,24 @@ That prompt tells the agent to:
 - compare results
 - keep the loop moving
 
+## 7b. Use the skill pack
+
+The npm package also ships a downloadable `skills/` folder.
+
+It contains the same research loop as agent-local skills:
+
+- `skills/researchloop-autoresearch/codex/SKILL.md`
+- `skills/researchloop-autoresearch/claude-code/CLAUDE.md`
+- `skills/researchloop-autoresearch/references/*.md`
+
+Use those files when you want the agent itself to carry the research rules, not just the current prompt.
+
+Typical flow:
+
+1. Copy the Codex or Claude Code file into the skill location your agent uses.
+2. Keep the `references/` files nearby as optional playbooks.
+3. Pair the skill with `.researchloop/goal.md` and the `researchloop prompt` output.
+
 You can still pass `--goal` for a one-off override, but the normal flow is to save the goal once and let the prompt command read it back.
 
 If you want the prompt to narrow in on a family of experiments, use one of the built-in focus playbooks:
@@ -135,7 +163,7 @@ If you want the prompt to narrow in on a family of experiments, use one of the b
 - `architecture`
 - `attention`
 
-## 7. Record and compare runs
+## 8. Record and compare runs
 
 After a run finishes:
 
@@ -161,7 +189,7 @@ Then summarize the current state:
 researchloop report
 ```
 
-## 8. Open the dashboard
+## 9. Open the dashboard
 
 Serve a local dashboard for the current repo:
 
@@ -179,7 +207,7 @@ Then open the localhost URL it prints. The dashboard reads the repo's `.research
 
 It does not need accounts or auth because it stays on your machine.
 
-## 9. Test the setup before you trust it
+## 10. Test the setup before you trust it
 
 Run the local checks from this repo:
 
@@ -201,7 +229,7 @@ These checks verify that:
 - the website copy matches the product
 - the end-to-end flow works
 
-## 10. Use it in a real ML repo
+## 11. Use it in a real ML repo
 
 Once the basics work, move into a real project:
 
@@ -216,7 +244,7 @@ Then give the prompt to your AI agent and let it run the loop.
 
 ResearchLoop is not trying to magically solve the model for you. It gives the agent the operating system for research: goals, baseline, logs, comparison, and continuation.
 
-## 11. Publish to npm
+## 12. Publish to npm
 
 The package is published to the public npm registry at [npmjs.com](https://www.npmjs.com/).
 
