@@ -9,7 +9,7 @@ The chronological log belongs in `scratchpad/THREAD.md`.
 - Best valid result: unknown
 - Active family: none
 - Running jobs: none
-- Next action: inspect repo and establish baseline
+- Next action: inspect system and repo, explain what the user has, and ask for approval
 
 ## Time Budget
 
@@ -18,9 +18,11 @@ The chronological log belongs in `scratchpad/THREAD.md`.
 
 ## Picklist
 
-1. Establish baseline.
-2. Identify metric extraction.
-3. Run one smoke experiment.
+1. Explain the system context, GPU/accelerator situation, and repo context in plain language.
+2. Ask the user to approve the first plan.
+3. After approval, establish the baseline.
+4. Identify metric extraction.
+5. Run one approved smoke experiment.
 
 ## Ruled Out
 

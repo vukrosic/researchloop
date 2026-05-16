@@ -26,7 +26,9 @@ Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
 Install the `researchloop` npm package if needed, then set up an autonomous AI research environment in this repo according to ResearchLoop.
-Read the ResearchLoop docs and the `.researchloop/` files, inspect the repo, establish the baseline, propose a small set of experiments, run the smallest valid change first, record every result, compare runs, and keep the research loop moving.
+Read the ResearchLoop docs and the `.researchloop/` files, then help me start AI research: inspect the local system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and propose a short plan.
+Do not summarize package internals, tarball contents, prompt files, or skill files unless I explicitly ask.
+Do not run training, baselines, sweeps, or experiments until I approve the plan.
 Use the package commands to manage goals, ideas, prompts, runs, comparisons, and reports.
 ```
 
@@ -49,7 +51,7 @@ researchloop --help
 If you want to hand this to an AI agent, the simplest instruction is:
 
 ```text
-Install ResearchLoop, initialize the repo, inspect the project, then use the generated prompt to start the research loop.
+Install ResearchLoop, inspect the system and project read-only, explain what I have in plain language, then propose a plan. Wait for my approval before any training, baseline, sweep, or experiment command.
 ```
 
 ## 3. Initialize a repo
@@ -71,6 +73,7 @@ That creates:
   scratchpad/
     THREAD.md
     runs.jsonl
+    memory.md
     ideas/
     papers/
     variants/
@@ -140,7 +143,7 @@ researchloop prompt --agent codex --focus attention
 researchloop prompt --agent codex --focus training-ladder
 ```
 
-That prompt tells the agent to:
+That prompt tells the agent to first explain the detected system context and repo context in plain language, then ask for approval before running anything. After approval, it tells the agent to:
 
 - read the `.researchloop/` files
 - establish a baseline
@@ -157,6 +160,8 @@ It contains the same research loop as agent-local skills:
 
 - `skills/researchloop-autoresearch/codex/SKILL.md`
 - `skills/researchloop-autoresearch/claude-code/CLAUDE.md`
+- `skills/researchloop-autoresearch/hermes/HERMES.md`
+- `skills/researchloop-autoresearch/cursor/researchloop.mdc`
 - `skills/researchloop-autoresearch/references/*.md`
 - `skills/researchloop-training-ladder/SKILL.md`
 
@@ -337,8 +342,8 @@ Then they run the CLI from that environment.
 
 ## 13. The one-line handoff to an AI agent
 
-If you want the shortest possible instruction for Codex, Claude Code, Hermes, or a similar agent, give it this:
+If you want the shortest possible instruction for Codex, Claude Code, Hermes, Cursor, or a similar agent, give it this:
 
 ```text
-Use ResearchLoop: run init, inspect the repo, read .researchloop/AGENTS.md and goal.md, establish the baseline, then run small experiments, record results, compare runs, and keep the research loop moving.
+Use ResearchLoop: install or use the package, inspect the system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and propose a short plan. Do not summarize package internals or prompt files. Do not run baselines, training, sweeps, or experiments until I approve the plan.
 ```

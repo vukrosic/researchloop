@@ -4,7 +4,8 @@ Promote ideas here only after they have a note, a minimal test plan, and a kill 
 
 ## Active
 
-- Establish baseline.
+- Explain the system/GPU/repo context in plain language and ask for approval.
+- After approval, establish baseline.
 
 ## Backlog
 

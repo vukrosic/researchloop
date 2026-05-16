@@ -14,6 +14,12 @@ printf '%s' "$out" | grep -q "quick / standard / long"
 printf '%s' "$out" | grep -q "target explicit"
 printf '%s' "$out" | grep -q "Use this folder, point me at a GitHub repo, or spin up a demo research repo?"
 printf '%s' "$out" | grep -q "learning-rate or hyperparameter sweeps"
+printf '%s' "$out" | grep -q "First-contact rule"
+printf '%s' "$out" | grep -q "Do not run training, baseline commands"
+printf '%s' "$out" | grep -q "Do not summarize package internals"
+printf '%s' "$out" | grep -q "student or researcher starting AI research"
+printf '%s' "$out" | grep -q "Do not lead with skill names or prompt names"
+printf '%s' "$out" | grep -q "ask for approval before running any baseline"
 if printf '%s' "$out" | grep -q '{{GOAL}}'; then
   echo "prompt template still has GOAL placeholder" >&2
   exit 1

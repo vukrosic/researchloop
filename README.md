@@ -13,7 +13,7 @@ It installs a durable research harness into a machine learning repo so agents li
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-Run npm install -g researchloop, then read the docs and propose an autonomous research plan.
+Run npm install -g researchloop if needed. Then help me start AI research: inspect this machine for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and propose a short plan. Do not summarize package internals or prompt files. Do not run training, baselines, sweeps, or experiments until I approve the plan.
 ```
 
 ---
@@ -52,7 +52,7 @@ researchloop dashboard
 researchloop doctor
 ```
 
-Then paste the generated prompt into the coding agent.
+Then paste the generated prompt into the coding agent. On first contact, the agent should explain the system and repo context in plain language before asking for approval to run anything.
 
 ## What It Creates
 
@@ -67,6 +67,7 @@ Then paste the generated prompt into the coding agent.
   scratchpad/
     THREAD.md
     runs.jsonl
+    memory.md
     ideas/
     papers/
     variants/

@@ -205,12 +205,15 @@ function installAgentFile(cwd, agent, force) {
     "- `.researchloop/plan.md`",
     "- `.researchloop/scratchpad/THREAD.md`",
     "- `.researchloop/scratchpad/runs.jsonl`",
+    "- `.researchloop/scratchpad/memory.md` when present",
     "- recent idea notes in `.researchloop/scratchpad/ideas/`",
     "",
     "Use `.researchloop/` as durable working memory.",
     "Record commands, metrics, decisions, history, and next experiments there.",
+    "Keep stable user preferences and working style in `.researchloop/scratchpad/memory.md`.",
     "Base new ideas on the repo's own experiment history first.",
     "Do not default to learning-rate sweeps unless the history or repo shape makes them the right follow-up.",
+    "Recommend the most relevant skills to the user from the current repo state, especially right after setup.",
     "",
   ].join("\n");
 
@@ -405,8 +408,12 @@ function cmdPrompt() {
     savedGoal ||
     "Improve the target metric through small, documented experiments.";
   const promptFile = path.join(templatesRoot, "prompts", "researchloop.md");
+  const firstContactFile = path.join(templatesRoot, "prompts", "first-contact.md");
   const template = fs.readFileSync(promptFile, "utf8");
-  let output = template.replaceAll("{{GOAL}}", goal);
+  const firstContact = fs.existsSync(firstContactFile)
+    ? `${fs.readFileSync(firstContactFile, "utf8").trim()}\n\n`
+    : "";
+  let output = `${firstContact}${template.replaceAll("{{GOAL}}", goal)}`;
 
   if (focus) {
     const focusFile = path.join(templatesRoot, "prompts", "focus", `${focus}.md`);

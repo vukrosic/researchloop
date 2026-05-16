@@ -65,10 +65,20 @@ test -f "$lab/.researchloop/goal.md"
 test -f "$lab/.researchloop/plan.md"
 test -f "$lab/.researchloop/scratchpad/runs.jsonl"
 test -f "$lab/AGENTS.md"
+grep -q "do not run training, baseline commands" "$lab/.researchloop/AGENTS.md"
+grep -q "avoid summarizing package internals" "$lab/.researchloop/AGENTS.md"
+grep -q "student or researcher starting AI research" "$lab/.researchloop/AGENTS.md"
+grep -q "ask for approval before running any baseline" "$lab/.researchloop/AGENTS.md"
 
 "$bin" goal --dir "$lab" "lower validation loss" --metric val_loss --direction lower >/tmp/researchloop-packed-goal.log
 "$bin" prompt --dir "$lab" --agent codex >/tmp/researchloop-packed-prompt.log
 grep -q "lower validation loss" /tmp/researchloop-packed-prompt.log
+grep -q "First-contact rule" /tmp/researchloop-packed-prompt.log
+grep -q "Do not run training, baseline commands" /tmp/researchloop-packed-prompt.log
+grep -q "Do not summarize package internals" /tmp/researchloop-packed-prompt.log
+grep -q "student or researcher starting AI research" /tmp/researchloop-packed-prompt.log
+grep -q "Do not lead with skill names or prompt names" /tmp/researchloop-packed-prompt.log
+grep -q "ask for approval before running any baseline" /tmp/researchloop-packed-prompt.log
 
 "$bin" record --dir "$lab" --id packed-001 --status complete --metric val_loss=1.23 --note "packed smoke" >/tmp/researchloop-packed-record.log
 "$bin" report --dir "$lab" >/tmp/researchloop-packed-report.log
