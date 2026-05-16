@@ -12,8 +12,5 @@ Suggested scenarios:
 - first experiment suggestion after install
 - dashboard with multiple loss curves
 - history-first idea generation
-- resettable five-minute optimizer sprint against `llm-research-kit`
 
-Detailed scenarios:
-
-- [LLM Research Kit five-minute optimizer sprint](./llm-research-kit-five-minute-optimizer-sprint.md)
+Research execution protocols live separately in [`../experiments/`](../experiments/).

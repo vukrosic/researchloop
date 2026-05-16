@@ -1,8 +1,8 @@
 # LLM Research Kit Five-Minute Optimizer Sprint
 
-This is a local-only ResearchLoop test scenario for validating that an agent can run a short autonomous optimization sprint against `llm-research-kit`, record every tiny experiment, and then completely reset all local changes.
+This is a local-only ResearchLoop experiment protocol for validating that an agent can run a short autonomous optimization sprint against `llm-research-kit`, record every tiny experiment, and then completely reset all local changes.
 
-It is not a package feature spec by itself. It is a control-room test for the behavior we want the tool and agent workflow to support.
+It is not a package feature spec by itself. It is a control-room research protocol for the behavior we want the tool and agent workflow to support.
 
 ## Trigger
 
@@ -207,7 +207,7 @@ The test fails if:
 - the agent loses the ledger during cleanup
 - the final before/after status diff is not empty
 
-## Product Gap This Tests
+## Product Gap This Exposes
 
 This scenario tests whether ResearchLoop can support bounded autonomous research sprints, not just one-off commands.
 

@@ -10,6 +10,7 @@ It is the control room for developing, deploying, and testing AutoResearch-AI wi
 - prompts for fresh onboarding agents
 - skills for supervising onboarding and first-experiment runs
 - tests for install, setup, dashboard, and first-run behavior
+- experiment protocols for bounded autonomous research runs
 - fixtures for empty repos and sample repos
 - deploy helpers for packing and installing the current local build
 - transcripts and summaries from simulated user runs
@@ -27,6 +28,7 @@ researchloop-dev/
   prompts/
   skills/
   tests/
+  experiments/
   fixtures/
   deploy/
   transcripts/
