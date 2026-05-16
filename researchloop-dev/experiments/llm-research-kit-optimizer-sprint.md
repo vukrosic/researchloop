@@ -1,8 +1,8 @@
-# LLM Research Kit Five-Minute Optimizer Sprint
+# LLM Research Kit Optimizer Sprint
 
-This is a local-only ResearchLoop experiment protocol for validating that an agent can run a short autonomous optimization sprint against `llm-research-kit`, record every tiny experiment, and then completely reset all local changes.
+This is a local-only ResearchLoop experiment protocol for timed optimizer probes against `llm-research-kit`.
 
-It is not a package feature spec by itself. It is a control-room research protocol for the behavior we want the tool and agent workflow to support.
+It specializes the reusable [timed research sprint module](./protocols/timed-research-sprint-module.md).
 
 ## Trigger
 
@@ -18,8 +18,8 @@ Reset all changes afterward.
 
 The agent should understand this as:
 
-- total sprint budget: about 5 minutes of wall-clock time
-- per-probe training budget: about 5 seconds
+- total sprint budget: the wall-clock budget named by the user, for example 3 minutes or 5 minutes
+- per-probe training budget: the probe budget named by the user, for example 5 seconds
 - optimization target: the code area named by the user, for example optimizer code
 - required output: a timestamped ledger of every probe and validation loss
 - required safety property: all local code and generated artifacts can be deleted or reverted afterward
@@ -34,7 +34,7 @@ Default target:
 
 The live checkout may already contain valuable dirty work. Never run destructive reset commands in the live checkout.
 
-All experiments must run in a disposable worktree or disposable clone.
+Default reset strategy is a disposable worktree. Use another strategy only if the user explicitly chooses it or the target is disposable.
 
 ## Reset Model
 
@@ -75,18 +75,18 @@ Required behavior:
 2. Record `sprint_start_epoch`.
 3. Inspect the current optimizer code.
 4. Make one small optimizer change.
-5. Run one tiny training probe with an intended 5-second budget.
+5. Run one training probe with the configured probe budget.
 6. Parse and record validation loss.
 7. Record actual start time, end time, and duration.
 8. Check total elapsed wall-clock time.
 9. Continue only if there is still enough time for another useful probe.
-10. Stop around 5 minutes, accepting that the final probe may end slightly after the exact time.
+10. Stop around the configured sprint budget, accepting that the final probe may end slightly after the exact time.
 
 Do not start a new probe once elapsed time is already near the full budget. A practical rule is:
 
-- if elapsed time is under 285 seconds, another short probe is allowed
-- if elapsed time is 285 seconds or more, stop and summarize
-- if a probe crosses 300 seconds, stop immediately after recording it
+- if elapsed time is below roughly `sprint_budget - 2 * probe_budget`, another short probe is usually allowed
+- if elapsed time is near or above the sprint budget, stop and summarize
+- if a probe crosses the sprint budget, stop immediately after recording it
 
 ## Probe Contract
 
@@ -97,15 +97,15 @@ The exact command may change as the kit evolves, but it must:
 - run from the disposable worktree
 - use the local Python environment that has PyTorch
 - use a tiny synthetic or already-available dataset path
-- run for about 5 seconds
+- run for about the configured probe budget
 - emit or produce validation loss
 - avoid downloads unless the user explicitly approves them
 
-If the training command cannot be made to stop at exactly 5 seconds, use the smallest available token, step, or iteration limit and record actual duration.
+If the training command cannot be made to stop exactly at the probe budget, use the smallest available token, step, or iteration limit and record actual duration.
 
 ## Edit Scope
 
-For the optimizer version of this test, default writable scope inside the disposable worktree is:
+For the optimizer version of this protocol, default writable scope inside the reset environment is:
 
 ```text
 optimizers/
@@ -113,7 +113,7 @@ training/trainer.py
 configs/llm_config.py
 ```
 
-Prefer optimizer-only changes when possible. Touch `training/trainer.py` or config only when needed to expose a tiny probe setting, switch optimizer options, or record a metric.
+Prefer optimizer-focused changes when possible. Larger changes are allowed when the user asks for broad optimization, but each probe still needs a clear change label.
 
 Every probe should have a short change label, for example:
 
@@ -129,20 +129,24 @@ Write the sprint ledger outside the disposable worktree so it survives cleanup.
 Suggested artifact:
 
 ```text
-/Users/vukrosic/my-life/autoresearch-ai/researchloop-dev/tests/runs/<RUN_ID>.jsonl
+/Users/vukrosic/my-life/autoresearch-ai/researchloop-dev/experiments/runs/<RUN_ID>.jsonl
 ```
 
 Each line should be one JSON object:
 
 ```json
-{"run_id":"llm-kit-optimizer-sprint-20260517-050000","probe_id":"001","change_label":"baseline","start_timestamp":"2026-05-17T05:00:00+08:00","end_timestamp":"2026-05-17T05:00:06+08:00","duration_seconds":6.1,"elapsed_sprint_seconds":6.1,"command":"...","status":"complete","val_loss":4.41,"train_loss":4.94,"notes":"baseline tiny synthetic probe"}
+{"run_id":"llm-kit-optimizer-sprint-20260517-050000","probe_id":"001","module":"timed-research-sprint","protocol":"llm-research-kit-optimizer","change_label":"baseline","sprint_budget_seconds":180,"probe_budget_seconds":5,"start_timestamp":"2026-05-17T05:00:00+08:00","validation_timestamp":"2026-05-17T05:00:06+08:00","end_timestamp":"2026-05-17T05:00:06+08:00","duration_seconds":6.1,"elapsed_sprint_seconds":6.1,"command":"...","status":"complete","val_loss":4.41,"train_loss":4.94,"notes":"baseline tiny synthetic probe"}
 ```
 
 Required fields:
 
 - `run_id`
 - `probe_id`
+- `module`
+- `protocol`
 - `change_label`
+- `sprint_budget_seconds`
+- `probe_budget_seconds`
 - `start_timestamp`
 - `end_timestamp`
 - `duration_seconds`
@@ -165,7 +169,7 @@ Optional fields:
 After cleanup, write a short markdown report next to the ledger:
 
 ```text
-/Users/vukrosic/my-life/autoresearch-ai/researchloop-dev/tests/runs/<RUN_ID>.md
+/Users/vukrosic/my-life/autoresearch-ai/researchloop-dev/experiments/runs/<RUN_ID>.md
 ```
 
 The report should include:
@@ -187,11 +191,11 @@ The report should include:
 The test passes only if:
 
 - the agent used a disposable worktree or clone
-- at least one 5-second probe was attempted
+- at least one timed probe was attempted
 - every attempted probe has timestamps and actual duration
 - every completed probe has validation loss or a clear parse failure note
 - total elapsed time was checked throughout the loop
-- the run stopped around the 5-minute budget
+- the run stopped around the configured sprint budget
 - the report and ledger survived cleanup
 - the disposable worktree was removed
 - the live `llm-research-kit` checkout status matched its pre-run status

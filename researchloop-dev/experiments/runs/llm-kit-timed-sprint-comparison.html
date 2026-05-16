@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Kit Timed Sprint Comparison</title>
+<style>
+  :root { color-scheme: light; --bg: #f8fafc; --panel: #fff; --ink: #0f172a; --muted: #475569; --line: #cbd5e1; --a: #0f766e; --b: #7c3aed; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 24px; }
+  .hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+  .hero { padding: 20px; background: linear-gradient(135deg, #ecfeff, #f8fafc 60%, #f5f3ff); }
+  .panel { padding: 16px; margin-top: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+  .small { color: var(--muted); font-size: 13px; }
+  code { background: #e2e8f0; padding: 0 4px; border-radius: 4px; }
+  h1 { margin: 0 0 8px; font-size: 30px; }
+  h2, h3 { margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-top: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 0; background: #f8fafc; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  .a { background: var(--a); }
+  .b { background: var(--b); }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .wrap { padding: 12px; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>LLM Kit Timed Sprint Comparison</h1>
+      <div class="small">Compares the two saved timed runs on the same elapsed-time axis.</div>
+      <div class="legend">
+        <div><span class="dot a"></span><code>llm-kit-timed-sprint-20260517-061853</code></div>
+        <div><span class="dot b"></span><code>llm-kit-timed-sprint-html-20260517-062734</code></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>What this shows</h2>
+      <div class="small">Left graph shows raw validation loss over time. Right graph shows running minimum validation loss over time. Each run keeps its own curve so timing differences stay visible.</div>
+      <div class="small" style="margin-top:8px;">The canonical source of truth is the JSONL ledger. The running minimum should never increase numerically within a run; it should stay flat or step down when a better validation loss appears.</div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <h3>Validation Loss vs Time</h3>
+        <svg viewBox="0 0 1120 420" width="100%" height="auto" role="img" aria-label="Comparison validation loss graph">
+          <rect x="0" y="0" width="1120" height="420" rx="10" fill="#ffffff" stroke="#cbd5e1"></rect>
+          <line x1="80" y1="30" x2="80" y2="340" stroke="#334155" stroke-width="1.2"></line>
+          <line x1="80" y1="340" x2="1060" y2="340" stroke="#334155" stroke-width="1.2"></line>
+          <line x1="80" y1="30" x2="1060" y2="30" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="107.5" x2="1060" y2="107.5" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="185" x2="1060" y2="185" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="262.5" x2="1060" y2="262.5" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="340" x2="1060" y2="340" stroke="#e5e7eb" stroke-width="1"></line>
+          <polyline points="80.00,340.00 130.28,253.89 180.56,259.19 230.83,289.61 281.11,220.07 331.39,153.64 381.67,203.80 431.94,169.32 482.22,250.90 532.50,220.60 582.78,165.41 633.06,276.44 683.33,286.18 733.61,256.11 783.89,199.23 834.17,161.43 884.44,289.67 934.72,285.22 985.00,218.54 1035.28,267.86 1060.00,340.00" fill="none" stroke="#0f766e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <polyline points="80.00,340.00 130.28,320.27 180.56,314.50 230.83,278.42 281.11,260.67 331.39,264.10 381.67,240.58 431.94,246.51 482.22,262.18 532.50,238.22 582.78,233.63 633.06,210.70 683.33,221.70 733.61,230.86 783.89,183.07 834.17,265.51 884.44,250.43 934.72,288.17 985.00,281.64 1035.28,264.48 1060.00,340.00" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <text x="80" y="18" fill="#0f172a" font-size="14" font-weight="600">Validation loss over elapsed sprint time</text>
+          <text x="90" y="362" fill="#0f766e" font-size="13">Run 1</text>
+          <text x="140" y="362" fill="#7c3aed" font-size="13">Run 2</text>
+          <text x="40" y="35" fill="#475569" font-size="12" text-anchor="middle">10.8</text>
+          <text x="40" y="112.5" fill="#475569" font-size="12" text-anchor="middle">9.0</text>
+          <text x="40" y="190" fill="#475569" font-size="12" text-anchor="middle">7.2</text>
+          <text x="40" y="267.5" fill="#475569" font-size="12" text-anchor="middle">5.4</text>
+          <text x="40" y="345" fill="#475569" font-size="12" text-anchor="middle">3.6</text>
+        </svg>
+      </section>
+
+      <section class="panel">
+        <h3>Running Minimum Validation Loss vs Time</h3>
+        <svg viewBox="0 0 1120 420" width="100%" height="auto" role="img" aria-label="Comparison running minimum graph">
+          <rect x="0" y="0" width="1120" height="420" rx="10" fill="#ffffff" stroke="#cbd5e1"></rect>
+          <line x1="80" y1="30" x2="80" y2="340" stroke="#334155" stroke-width="1.2"></line>
+          <line x1="80" y1="340" x2="1060" y2="340" stroke="#334155" stroke-width="1.2"></line>
+          <line x1="80" y1="30" x2="1060" y2="30" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="107.5" x2="1060" y2="107.5" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="185" x2="1060" y2="185" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="262.5" x2="1060" y2="262.5" stroke="#e5e7eb" stroke-width="1"></line>
+          <line x1="80" y1="340" x2="1060" y2="340" stroke="#e5e7eb" stroke-width="1"></line>
+          <polyline points="80.00,340.00 130.28,253.89 180.56,253.89 230.83,253.89 281.11,220.07 331.39,153.64 381.67,153.64 431.94,153.64 482.22,153.64 532.50,153.64 582.78,153.64 633.06,153.64 683.33,153.64 733.61,153.64 783.89,153.64 834.17,153.64 884.44,153.64 934.72,153.64 985.00,153.64 1035.28,153.64 1060.00,153.64" fill="none" stroke="#0f766e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <polyline points="80.00,340.00 130.28,320.27 180.56,314.50 230.83,278.42 281.11,260.67 331.39,260.67 381.67,240.58 431.94,240.58 482.22,240.58 532.50,233.63 582.78,233.63 633.06,210.70 683.33,210.70 733.61,210.70 783.89,183.07 834.17,183.07 884.44,183.07 934.72,183.07 985.00,183.07 1035.28,183.07 1060.00,183.07" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <text x="80" y="18" fill="#0f172a" font-size="14" font-weight="600">Running minimum of validation loss over elapsed sprint time</text>
+          <text x="90" y="362" fill="#0f766e" font-size="13">Run 1</text>
+          <text x="140" y="362" fill="#7c3aed" font-size="13">Run 2</text>
+          <text x="40" y="35" fill="#475569" font-size="12" text-anchor="middle">10.8</text>
+          <text x="40" y="112.5" fill="#475569" font-size="12" text-anchor="middle">9.0</text>
+          <text x="40" y="190" fill="#475569" font-size="12" text-anchor="middle">7.2</text>
+          <text x="40" y="267.5" fill="#475569" font-size="12" text-anchor="middle">5.4</text>
+          <text x="40" y="345" fill="#475569" font-size="12" text-anchor="middle">3.6</text>
+        </svg>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>Run Summary</h2>
+      <table>
+        <thead>
+          <tr><th>Run</th><th>Agent Model</th><th>Duration</th><th>Probes</th><th>Best Val Loss</th><th>Best Probe</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>llm-kit-timed-sprint-20260517-061853</code></td><td>GPT-5.4 Mini</td><td>170.502s</td><td>34</td><td>10.19455087184906</td><td>032</td></tr>
+          <tr><td><code>llm-kit-timed-sprint-html-20260517-062734</code></td><td>GPT-5.4 Mini</td><td>178.156s</td><td>35</td><td>6.162621438503265</td><td>032</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

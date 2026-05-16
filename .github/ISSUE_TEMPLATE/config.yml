@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussion / question
+    url: https://github.com/vukrosic/autoresearch-ai/discussions
+    about: Ask a question, share an idea, or propose a direction before opening an issue.
+  - name: Pick a development goal to work on
+    url: https://github.com/vukrosic/autoresearch-ai/blob/main/GOALS.md
+    about: Browse the GOALS.md backlog of parallelizable G## tasks and open a "Contribute a Goal" issue to claim one.

@@ -181,6 +181,31 @@ The startup plan is in `docs/startup/`.
 - `npm run test:adapters` checks repo-shape adapter detection against negative cases.
 - `npm run test:packed` packs the tarball, installs into an isolated npm prefix, and runs the harness end-to-end.
 
+## Contributing
+
+AutoResearch-AI is built in the open by humans and AI coding agents working in parallel.
+
+Every shippable unit of work is a numbered goal in [GOALS.md](./GOALS.md) — sized so one agent can pick it up independently, with acceptance criteria, a test plan, file ownership, and explicit dependencies. To contribute:
+
+1. Read [AGENTS.md](./AGENTS.md) and [CONTRIBUTING.md](./CONTRIBUTING.md).
+2. Pick a `G##` goal from [GOALS.md](./GOALS.md) that has no open issue / PR against it and whose `Depends on` goals are already merged.
+3. Open a [Contribute-a-Goal issue](./.github/ISSUE_TEMPLATE/contribute-goal.yml) to claim it.
+4. Branch, implement, run `npm test`, open a PR using the [PR template](./.github/PULL_REQUEST_TEMPLATE.md).
+
+PRs written wholly or partly by AI coding agents are welcome — name the agent in the PR description so reviewers know what kind of review the change needs.
+
+See also: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md).
+
+## Parallel Agent Tooling
+
+Local helper for running many coding agents in parallel against the same repo:
+
+```bash
+./researchloop-dev/tools/codex-swarm.sh           # opens a 3x2 grid of Terminal.app windows, each running `codex`
+```
+
+Full options and patterns: [researchloop-dev/tools/README.md](./researchloop-dev/tools/README.md). macOS only today.
+
 ## Open Source
 
 AutoResearch-AI should stay open source at the core. The npm package, prompts, adapters, and run ledger format should be inspectable and forkable.

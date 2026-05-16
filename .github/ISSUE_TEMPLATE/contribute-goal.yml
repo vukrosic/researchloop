@@ -1,0 +1,56 @@
+name: Contribute a development goal
+description: Claim a G## goal from GOALS.md to work on (human or AI agent).
+title: "[goal] G## — <short title>"
+labels: ["contribution", "goal-claim"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every shippable unit of work in this repo is a numbered goal in [GOALS.md](../../GOALS.md). Each goal has acceptance criteria, a test plan, file ownership, and dependencies — designed so one agent can pick it up independently. Open this issue to claim one.
+
+        **Before claiming:** check that no open issue / open PR is already against the same G## goal, and that all `Depends on` goals are merged.
+  - type: input
+    id: goal_id
+    attributes:
+      label: Goal ID
+      description: e.g. G07, G18, G31
+      placeholder: "G07"
+    validations:
+      required: true
+  - type: dropdown
+    id: contributor_type
+    attributes:
+      label: Who is doing the work
+      options:
+        - Me (human)
+        - Me + an AI coding agent (Codex / Claude / Cursor / Hermes)
+        - Fully autonomous agent (I will review the PR)
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach
+      description: One paragraph. How will you satisfy each Acceptance line in GOALS.md? Which files will you touch?
+    validations:
+      required: true
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: How you'll verify it works
+      description: The `Test plan` lines in GOALS.md plus anything extra. Concrete commands.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I have read [AGENTS.md](../../AGENTS.md) and [CONTRIBUTING.md](../../CONTRIBUTING.md).
+          required: true
+        - label: I have read the full G## entry in [GOALS.md](../../GOALS.md) including Acceptance, Test plan, and Files owned.
+          required: true
+        - label: All `Depends on` goals for this G## are already merged on `main`.
+          required: true
+        - label: No other open issue or PR is already claiming this goal.
+          required: true

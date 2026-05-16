@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in the CLI, prompts, or docs is broken.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please include the exact command and output — "doesn't work" is not enough to act on.
+  - type: input
+    id: version
+    attributes:
+      label: autoresearch-ai version
+      description: Output of `autoresearch --version`.
+      placeholder: "0.3.1"
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: Output of `node --version`.
+      placeholder: "v20.9.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 15.5 / Ubuntu 24.04 / ..."
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command you ran
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Full output. Trim secrets if any.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Repo type, GPU, agent (Codex / Claude / Cursor / ...), screenshots.

@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a new CLI behavior, prompt, adapter, or integration not already in GOALS.md.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If your idea fits an existing G## goal in [GOALS.md](../../GOALS.md), open a "Contribute a Goal" issue instead. Use this template for genuinely new ideas that aren't on the roadmap.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today? What workflow is painful?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should AutoResearch-AI do, concretely? Sketch the CLI surface or file format if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you think about? Why is this one better?
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope check
+      description: Does this require new runtime dependencies? Does it grow the npm package size? Does it touch the CLI contract?

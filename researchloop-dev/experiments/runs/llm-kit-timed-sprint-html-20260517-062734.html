@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>llm-kit-timed-sprint-html-20260517-062734 run report</title>
+<style>
+  :root { color-scheme: light; --bg: #f8fafc; --panel: #ffffff; --ink: #0f172a; --muted: #475569; --line: #cbd5e1; --accent: #0f766e; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .hero { background: linear-gradient(135deg, #ecfeff, #f8fafc 55%, #eef2ff); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .graph h3, .panel h2 { margin: 0 0 12px; font-size: 18px; }
+  .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; margin-top: 12px; color: var(--muted); }
+  .meta div { line-height: 1.35; }
+  code { background: #e2e8f0; padding: 0 4px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border-top: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 0; background: #f8fafc; }
+  .small { color: var(--muted); font-size: 13px; }
+  .ok { color: #047857; font-weight: 600; }
+  .bad { color: #b91c1c; font-weight: 600; }
+  @media (max-width: 900px) { .grid, .meta { grid-template-columns: 1fr; } .wrap { padding: 12px; } }
+</style>
+</head>
+<body>
+  <div class='wrap'>
+    <section class='hero'>
+      <h1 style='margin:0 0 8px;font-size:28px'>llm-kit-timed-sprint-html-20260517-062734</h1>
+      <div class='small'>Timed sprint on <code>/Users/vukrosic/my-life/research-repos/llm-research-kit</code> with <code>GPT-5.4 Mini</code>.</div>
+      <div class='meta'>
+        <div><strong>Sprint start</strong><br>2026-05-17T06:28:39.317226+08:00</div>
+        <div><strong>Sprint end</strong><br>2026-05-17T06:31:37.472741+08:00</div>
+        <div><strong>Sprint duration</strong><br>178.156s</div>
+        <div><strong>Reset proof</strong><br><span class='ok'>clean</span></div>
+        <div><strong>Base ref</strong><br><code>8b9aeb960824ce46950193c5eebd47a3c2eedccf</code></div>
+        <div><strong>Ledger</strong><br><code>/Users/vukrosic/my-life/autoresearch-ai/researchloop-dev/experiments/runs/llm-kit-timed-sprint-html-20260517-062734.jsonl</code></div>
+      </div>
+      <div class='small' style='margin-top:12px'>Changed files: <code>optimizers/muon.py</code></div>
+      <div class='small'>Diff stat: <code>optimizers/muon.py | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)</code></div>
+    </section>
+
+    <div class='grid'>
+      <section class='panel'>
+        <h2>What I Did</h2>
+        <p class='small'>Ran repeated five-second probes against the optimizer path, recorded timestamps and validation loss for every probe, and preserved the permanent ledger and report outside the disposable clone.</p>
+        <ul class='small'><li><code>muon_lr_scale_0_8</code> x 9</li><li><code>muon_lr_scale_1_2</code> x 9</li><li><code>muon_ns_steps_3_lr_0_024</code> x 9</li><li><code>muon_ns_steps_5_lr_0_024</code> x 8</li></ul>
+      </section>
+      <section class='panel'>
+        <h2>Key Result</h2>
+        <p class='small'>Best validation loss was <code>6.162621438503265</code> at probe <code>032</code> using <code>muon_ns_steps_5_lr_0_024</code>.</p>
+        <p class='small'>Probes attempted: <code>35</code>; probes completed: <code>35</code>.</p>
+      </section>
+    </div>
+
+    <div class='grid'>
+      <section class='panel'>
+    <div class='graph'>
+      <h3>Validation Loss vs Time</h3>
+      <svg viewBox='0 0 980 320' width='100%' height='auto' role='img' aria-label='Validation Loss vs Time'>
+        <rect x='0' y='0' width='980' height='320' rx='10' fill='#ffffff' stroke='#cbd5e1' />
+        <line x1='70.0' y1='35.0' x2='960.0' y2='35.0' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='93.8' x2='960.0' y2='93.8' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='152.5' x2='960.0' y2='152.5' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='211.2' x2='960.0' y2='211.2' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='270.0' x2='960.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='35.0' x2='70.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='292.5' y1='35.0' x2='292.5' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='515.0' y1='35.0' x2='515.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='737.5' y1='35.0' x2='737.5' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='960.0' y1='35.0' x2='960.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' />
+        <line x1='70.0' y1='35.0' x2='70.0' y2='270.0' stroke='#334155' stroke-width='1.2' />
+        <line x1='70.0' y1='270.0' x2='960.0' y2='270.0' stroke='#334155' stroke-width='1.2' />
+        <polyline points='104.18,163.35 129.36,50.92 154.77,152.43 179.88,211.34 205.01,98.52 230.19,102.21 255.31,145.74 280.46,156.87 305.59,116.12 330.81,162.65 355.95,152.64 381.10,205.38 406.24,135.82 431.39,112.64 456.53,103.03 481.66,160.12 506.77,47.71 531.91,35.00 557.04,88.50 582.23,190.04 607.45,181.45 632.65,107.10 657.79,188.74 682.94,130.70 708.05,120.62 733.20,57.66 758.32,108.95 783.46,156.86 808.70,135.56 833.93,139.06 859.20,157.28 884.41,270.00 909.61,223.08 934.84,73.74 960.00,212.44' fill='none' stroke='#0f766e' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' />
+        <circle cx='104.18' cy='163.35' r='2.8' fill='#0f766e' /><circle cx='129.36' cy='50.92' r='2.8' fill='#0f766e' /><circle cx='154.77' cy='152.43' r='2.8' fill='#0f766e' /><circle cx='179.88' cy='211.34' r='2.8' fill='#0f766e' /><circle cx='205.01' cy='98.52' r='2.8' fill='#0f766e' /><circle cx='230.19' cy='102.21' r='2.8' fill='#0f766e' /><circle cx='255.31' cy='145.74' r='2.8' fill='#0f766e' /><circle cx='280.46' cy='156.87' r='2.8' fill='#0f766e' /><circle cx='305.59' cy='116.12' r='2.8' fill='#0f766e' /><circle cx='330.81' cy='162.65' r='2.8' fill='#0f766e' /><circle cx='355.95' cy='152.64' r='2.8' fill='#0f766e' /><circle cx='381.10' cy='205.38' r='2.8' fill='#0f766e' /><circle cx='406.24' cy='135.82' r='2.8' fill='#0f766e' /><circle cx='431.39' cy='112.64' r='2.8' fill='#0f766e' /><circle cx='456.53' cy='103.03' r='2.8' fill='#0f766e' /><circle cx='481.66' cy='160.12' r='2.8' fill='#0f766e' /><circle cx='506.77' cy='47.71' r='2.8' fill='#0f766e' /><circle cx='531.91' cy='35.00' r='2.8' fill='#0f766e' /><circle cx='557.04' cy='88.50' r='2.8' fill='#0f766e' /><circle cx='582.23' cy='190.04' r='2.8' fill='#0f766e' /><circle cx='607.45' cy='181.45' r='2.8' fill='#0f766e' /><circle cx='632.65' cy='107.10' r='2.8' fill='#0f766e' /><circle cx='657.79' cy='188.74' r='2.8' fill='#0f766e' /><circle cx='682.94' cy='130.70' r='2.8' fill='#0f766e' /><circle cx='708.05' cy='120.62' r='2.8' fill='#0f766e' /><circle cx='733.20' cy='57.66' r='2.8' fill='#0f766e' /><circle cx='758.32' cy='108.95' r='2.8' fill='#0f766e' /><circle cx='783.46' cy='156.86' r='2.8' fill='#0f766e' /><circle cx='808.70' cy='135.56' r='2.8' fill='#0f766e' /><circle cx='833.93' cy='139.06' r='2.8' fill='#0f766e' /><circle cx='859.20' cy='157.28' r='2.8' fill='#0f766e' /><circle cx='884.41' cy='270.00' r='2.8' fill='#0f766e' /><circle cx='909.61' cy='223.08' r='2.8' fill='#0f766e' /><circle cx='934.84' cy='73.74' r='2.8' fill='#0f766e' /><circle cx='960.00' cy='212.44' r='2.8' fill='#0f766e' />
+        <text x='70.0' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>0s</text><text x='292.5' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>45s</text><text x='515.0' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>89s</text><text x='737.5' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>134s</text><text x='960.0' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>178s</text>
+        <text x='60.0' y='39.0' text-anchor='end' fill='#475569' font-size='12'>8.738</text><text x='60.0' y='97.8' text-anchor='end' fill='#475569' font-size='12'>8.094</text><text x='60.0' y='156.5' text-anchor='end' fill='#475569' font-size='12'>7.450</text><text x='60.0' y='215.2' text-anchor='end' fill='#475569' font-size='12'>6.807</text><text x='60.0' y='274.0' text-anchor='end' fill='#475569' font-size='12'>6.163</text>
+        <text x='70.0' y='20' fill='#0f172a' font-size='14' font-weight='600'>Validation loss over elapsed sprint time</text>
+      </svg>
+    </div>
+    </section>
+      <section class='panel'>
+    <div class='graph'>
+      <h3>Running Minimum Validation Loss vs Time</h3>
+      <svg viewBox='0 0 980 320' width='100%' height='auto' role='img' aria-label='Running Minimum Validation Loss vs Time'>
+        <rect x='0' y='0' width='980' height='320' rx='10' fill='#ffffff' stroke='#cbd5e1' />
+        <line x1='70.0' y1='35.0' x2='960.0' y2='35.0' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='93.8' x2='960.0' y2='93.8' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='152.5' x2='960.0' y2='152.5' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='211.2' x2='960.0' y2='211.2' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='270.0' x2='960.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='70.0' y1='35.0' x2='70.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='292.5' y1='35.0' x2='292.5' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='515.0' y1='35.0' x2='515.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='737.5' y1='35.0' x2='737.5' y2='270.0' stroke='#e5e7eb' stroke-width='1' /><line x1='960.0' y1='35.0' x2='960.0' y2='270.0' stroke='#e5e7eb' stroke-width='1' />
+        <line x1='70.0' y1='35.0' x2='70.0' y2='270.0' stroke='#334155' stroke-width='1.2' />
+        <line x1='70.0' y1='270.0' x2='960.0' y2='270.0' stroke='#334155' stroke-width='1.2' />
+        <polyline points='104.18,35.00 129.36,35.00 154.77,35.00 179.88,140.74 205.01,140.74 230.19,140.74 255.31,140.74 280.46,140.74 305.59,140.74 330.81,140.74 355.95,140.74 381.10,140.74 406.24,140.74 431.39,140.74 456.53,140.74 481.66,140.74 506.77,140.74 531.91,140.74 557.04,140.74 582.23,140.74 607.45,140.74 632.65,140.74 657.79,140.74 682.94,140.74 708.05,140.74 733.20,140.74 758.32,140.74 783.46,140.74 808.70,140.74 833.93,140.74 859.20,140.74 884.41,270.00 909.61,270.00 934.84,270.00 960.00,270.00' fill='none' stroke='#0f766e' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' />
+        <circle cx='104.18' cy='35.00' r='2.8' fill='#0f766e' /><circle cx='129.36' cy='35.00' r='2.8' fill='#0f766e' /><circle cx='154.77' cy='35.00' r='2.8' fill='#0f766e' /><circle cx='179.88' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='205.01' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='230.19' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='255.31' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='280.46' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='305.59' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='330.81' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='355.95' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='381.10' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='406.24' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='431.39' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='456.53' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='481.66' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='506.77' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='531.91' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='557.04' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='582.23' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='607.45' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='632.65' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='657.79' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='682.94' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='708.05' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='733.20' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='758.32' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='783.46' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='808.70' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='833.93' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='859.20' cy='140.74' r='2.8' fill='#0f766e' /><circle cx='884.41' cy='270.00' r='2.8' fill='#0f766e' /><circle cx='909.61' cy='270.00' r='2.8' fill='#0f766e' /><circle cx='934.84' cy='270.00' r='2.8' fill='#0f766e' /><circle cx='960.00' cy='270.00' r='2.8' fill='#0f766e' />
+        <text x='70.0' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>0s</text><text x='292.5' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>45s</text><text x='515.0' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>89s</text><text x='737.5' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>134s</text><text x='960.0' y='292.0' text-anchor='middle' fill='#475569' font-size='12'>178s</text>
+        <text x='60.0' y='39.0' text-anchor='end' fill='#475569' font-size='12'>7.331</text><text x='60.0' y='97.8' text-anchor='end' fill='#475569' font-size='12'>7.039</text><text x='60.0' y='156.5' text-anchor='end' fill='#475569' font-size='12'>6.747</text><text x='60.0' y='215.2' text-anchor='end' fill='#475569' font-size='12'>6.455</text><text x='60.0' y='274.0' text-anchor='end' fill='#475569' font-size='12'>6.163</text>
+        <text x='70.0' y='20' fill='#0f172a' font-size='14' font-weight='600'>Running minimum of validation loss over elapsed sprint time</text>
+      </svg>
+    </div>
+    </section>
+    </div>
+
+    <section class='panel' style='margin-top:18px'>
+      <h2>Probe Table</h2>
+      <div style='overflow:auto; max-height: 520px;'>
+        <table>
+          <thead><tr><th>Probe</th><th>Change</th><th>Status</th><th>Validation</th><th>Duration</th><th>Val Loss</th></tr></thead>
+          <tbody><tr><td>001</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:28:46.090843+08:00</td><td>6.78</td><td>7.331486463546753</td></tr><tr><td>002</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:28:51.175168+08:00</td><td>5.041</td><td>8.563743352890015</td></tr><tr><td>003</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:28:56.251012+08:00</td><td>5.085</td><td>7.451224863529205</td></tr><tr><td>004</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:29:01.295192+08:00</td><td>5.027</td><td>6.805525004863739</td></tr><tr><td>005</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:29:06.324241+08:00</td><td>5.029</td><td>8.042005717754364</td></tr><tr><td>006</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:29:11.351897+08:00</td><td>5.04</td><td>8.001585841178894</td></tr><tr><td>007</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:29:16.391959+08:00</td><td>5.029</td><td>7.524510622024536</td></tr><tr><td>008</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:29:21.425421+08:00</td><td>5.032</td><td>7.402546405792236</td></tr><tr><td>009</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:29:26.457588+08:00</td><td>5.032</td><td>7.849194169044495</td></tr><tr><td>010</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:29:31.496787+08:00</td><td>5.047</td><td>7.339177846908569</td></tr><tr><td>011</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:29:36.534837+08:00</td><td>5.033</td><td>7.448930084705353</td></tr><tr><td>012</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:29:41.569539+08:00</td><td>5.033</td><td>6.870879769325256</td></tr><tr><td>013</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:29:46.603616+08:00</td><td>5.031</td><td>7.633187532424927</td></tr><tr><td>014</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:29:51.633550+08:00</td><td>5.034</td><td>7.887294888496399</td></tr><tr><td>015</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:29:56.670594+08:00</td><td>5.034</td><td>7.992575645446777</td></tr><tr><td>016</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:30:01.702689+08:00</td><td>5.029</td><td>7.366898775100708</td></tr><tr><td>017</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:30:06.726576+08:00</td><td>5.027</td><td>8.598937511444092</td></tr><tr><td>018</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:30:11.758556+08:00</td><td>5.033</td><td>8.738233804702759</td></tr><tr><td>019</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:30:16.790224+08:00</td><td>5.029</td><td>8.151914954185486</td></tr><tr><td>020</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:30:21.824999+08:00</td><td>5.041</td><td>7.039036571979523</td></tr><tr><td>021</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:30:26.866903+08:00</td><td>5.048</td><td>7.133086323738098</td></tr><tr><td>022</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:30:31.916847+08:00</td><td>5.044</td><td>7.948044717311859</td></tr><tr><td>023</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:30:36.956058+08:00</td><td>5.033</td><td>7.053243041038513</td></tr><tr><td>024</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:30:41.989694+08:00</td><td>5.032</td><td>7.689393401145935</td></tr><tr><td>025</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:30:47.019691+08:00</td><td>5.028</td><td>7.7998809814453125</td></tr><tr><td>026</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:30:52.055375+08:00</td><td>5.033</td><td>8.489831686019897</td></tr><tr><td>027</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:30:57.082842+08:00</td><td>5.027</td><td>7.927769839763641</td></tr><tr><td>028</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:31:02.108207+08:00</td><td>5.034</td><td>7.402630507946014</td></tr><tr><td>029</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:31:07.150982+08:00</td><td>5.051</td><td>7.636095583438873</td></tr><tr><td>030</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:31:12.202254+08:00</td><td>5.05</td><td>7.597719132900238</td></tr><tr><td>031</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:31:17.252474+08:00</td><td>5.057</td><td>7.39799839258194</td></tr><tr><td>032</td><td>muon_ns_steps_5_lr_0_024</td><td>complete</td><td>2026-05-17T06:31:22.309695+08:00</td><td>5.046</td><td>6.162621438503265</td></tr><tr><td>033</td><td>muon_ns_steps_3_lr_0_024</td><td>complete</td><td>2026-05-17T06:31:27.352911+08:00</td><td>5.046</td><td>6.676866054534912</td></tr><tr><td>034</td><td>muon_lr_scale_0_8</td><td>complete</td><td>2026-05-17T06:31:32.397032+08:00</td><td>5.05</td><td>8.313636183738708</td></tr><tr><td>035</td><td>muon_lr_scale_1_2</td><td>complete</td><td>2026-05-17T06:31:37.449542+08:00</td><td>5.036</td><td>6.793436527252197</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
