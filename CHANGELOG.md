@@ -5,6 +5,7 @@
 New:
 
 - Renamed the npm package from `researchloop` to `autoresearch-ai`.
+- Updated the README and local install examples to use the new package/repo name.
 
 Improved:
 

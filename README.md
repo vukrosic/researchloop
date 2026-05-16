@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/researchloop-banner.webp" alt="ResearchLoop banner" width="100%" />
+  <img src="./assets/researchloop-banner.webp" alt="AutoResearch-AI banner" width="100%" />
 </p>
 
-ResearchLoop is an open source npm package for autonomous AI research workflows, published on npm as `autoresearch-ai`.
+AutoResearch-AI is an open source npm package for autonomous AI research workflows, published on npm as `autoresearch-ai`.
 
 If you want the full step-by-step usage and publish guide, read [docs/getting-started.md](./docs/getting-started.md).
 
@@ -30,7 +30,7 @@ Local development from this checkout:
 
 ```bash
 git clone https://github.com/vukrosic/autoresearch-ai.git
-cd researchloop
+cd autoresearch-ai
 npm link
 researchloop --help
 ```
@@ -117,7 +117,7 @@ Autonomous AI research is bottlenecked less by model access than by research dis
 - pruning
 - continuation
 
-ResearchLoop packages that loop as an open source npm tool.
+AutoResearch-AI packages that loop as an open source npm tool.
 
 ## Users
 
@@ -138,7 +138,7 @@ The startup plan is in `docs/startup/`.
 - `researchloop scan-papers` fetches relevant arXiv abstracts into `.researchloop/scratchpad/papers/`.
 - `researchloop idea` opens a chat-first research prompt that reads the repo history, asks for the time budget if needed, and can write the prompt into an idea note.
 - `researchloop prompt` prints an agent-ready autonomous research prompt, with optional focus playbooks.
-- `researchloop team` generates a local multi-agent development board for the ResearchLoop repo or another project.
+- `researchloop team` generates a local multi-agent development board for the AutoResearch-AI repo or another project.
 - `researchloop baseline` runs the baseline command, parses the metric, and locks it into `goal.md` and `plan.md`.
 - `researchloop run` executes a training or eval command, streams the log, parses the metric, and records the run.
 - `researchloop record` appends a structured run result to `runs.jsonl` (use for manual rows).
@@ -164,7 +164,7 @@ The startup plan is in `docs/startup/`.
 
 ## Open Source
 
-ResearchLoop should stay open source at the core. The npm package, prompts, adapters, and run ledger format should be inspectable and forkable.
+AutoResearch-AI should stay open source at the core. The npm package, prompts, adapters, and run ledger format should be inspectable and forkable.
 
 The package also ships optional skill packs under `skills/` so teams can copy the same research rules into Codex, Claude Code, or other agent-specific folders.
 
