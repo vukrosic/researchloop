@@ -1,28 +1,30 @@
 # Contributing
 
-ResearchLoop is meant to be useful to researchers first.
+Welcome. Keep changes small and real.
 
-Good contributions:
+## Quick Links
+
+- **Vision:** [`VISION.md`](VISION.md)
+- **Docs:** [`docs/getting-started.md`](docs/getting-started.md)
+- **Tests:** `npm run smoke && npm run smoke:e2e`
+
+## Good Contributions
 
 - new repo adapters
-- better agent prompt templates
-- run ledger improvements
+- better prompt templates
+- dashboard and run-logging improvements
+- onboarding and first-run fixes
 - examples from real research workflows
-- bug reports from PhD students, labs, and independent researchers
 
-Before adding a large feature, open an issue or write a short proposal in `docs/research/ideas/`.
+## Before You PR
 
-## Local Development
+- test locally
+- keep the change focused
+- do not claim results you did not run
+- open an issue first for large features or architecture changes
 
-```bash
-npm link
-npm run smoke
-npm run smoke:e2e
-```
+## Style
 
-## Design Rules
-
-- Keep the core open source and easy to inspect.
-- Prefer plain files over hidden state.
-- Never claim an experiment result that was not actually run.
-- Make the smallest useful loop work before expanding scope.
+- prefer plain files over hidden state
+- keep the product inspectable
+- make the smallest useful loop work first
