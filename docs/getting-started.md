@@ -25,10 +25,10 @@ If `.researchloop/plan.md` does not already have a time budget, ask one question
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-Install the `researchloop` npm package if needed, then set up an autonomous AI research environment in this repo according to ResearchLoop.
-Read the ResearchLoop docs and the `.researchloop/` files, then help me start AI research: inspect the local system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and propose a short plan.
+Install the `researchloop` npm package if needed. Act as an automated AI researcher and follow the ResearchLoop first-contact prompt.
+Read the ResearchLoop docs and the `.researchloop/` files, then help me start AI research: inspect the local system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and check whether a baseline exists and where it is documented.
 Do not summarize package internals, tarball contents, prompt files, or skill files unless I explicitly ask.
-Do not run training, baselines, sweeps, or experiments until I approve the plan.
+Do not run init, training, baselines, sweeps, or experiments until I approve the plan.
 Use the package commands to manage goals, ideas, prompts, runs, comparisons, and reports.
 ```
 
@@ -51,7 +51,7 @@ researchloop --help
 If you want to hand this to an AI agent, the simplest instruction is:
 
 ```text
-Install ResearchLoop, inspect the system and project read-only, explain what I have in plain language, then propose a plan. Wait for my approval before any training, baseline, sweep, or experiment command.
+Install ResearchLoop, follow `templates/prompts/first-contact.md`, inspect the system and project read-only, explain what I have in plain language, check the baseline state first, then propose a plan. Wait for my approval before any init, training, baseline, sweep, or experiment command.
 ```
 
 ## 3. Initialize a repo
@@ -345,5 +345,5 @@ Then they run the CLI from that environment.
 If you want the shortest possible instruction for Codex, Claude Code, Hermes, Cursor, or a similar agent, give it this:
 
 ```text
-Use ResearchLoop: install or use the package, inspect the system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and propose a short plan. Do not summarize package internals or prompt files. Do not run baselines, training, sweeps, or experiments until I approve the plan.
+Use ResearchLoop: install or use the package, act as an automated AI researcher, and follow `templates/prompts/first-contact.md`. Inspect the system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and check whether a baseline exists and where it is documented. Do not summarize package internals or prompt files. Do not run init, baselines, training, sweeps, or experiments until I approve the plan.
 ```

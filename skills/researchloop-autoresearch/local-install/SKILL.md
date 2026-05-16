@@ -10,7 +10,7 @@ Use this when another agent is on the same machine and should see ResearchLoop o
 Copy this to the other agent:
 
 ```text
-/Users/vukrosic/AI Science Projects/testing-research-loop/researchloop-0.3.0.tgz Act as an automated AI researcher. This package contains the tools and prompts. Follow `templates/prompts/first-contact.md`: only talk to me first, explain my system/GPU/repo in simple language, and wait for approval before init, training, baselines, sweeps, or experiments.
+/Users/vukrosic/AI Science Projects/testing-research-loop/researchloop-0.3.0.tgz Act as an automated AI researcher. This package contains the tools and prompts. Follow `templates/prompts/first-contact.md`: only talk to me first, explain my system/GPU/repo in simple language, check whether a baseline exists and where it is documented, and wait for approval before init, training, baselines, sweeps, or experiments.
 ```
 
 If the agent needs to smoke-test the package as a fresh npm install, give it only this:

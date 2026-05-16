@@ -17,6 +17,14 @@
 - Summarize run ledger with `researchloop report`.
 - Provide templates for Codex, Claude Code, Hermes, Cursor, PyTorch, Hugging Face, and generic repos.
 
+## Done (0.3.1)
+
+- Canonical `templates/prompts/first-contact.md` for first-run onboarding.
+- `researchloop prompt` includes first-contact rules automatically.
+- README copy-paste prompt now starts from `npm install -g researchloop`.
+- First-contact behavior is baseline-first: inspect and document the baseline before recommending experiments.
+- Prompt and packed-package tests cover the onboarding guardrails.
+
 ## Done (0.3.0)
 
 - `researchloop --version`.

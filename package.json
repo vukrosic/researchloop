@@ -1,6 +1,6 @@
 {
   "name": "researchloop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Install an autonomous AI research harness for Codex, Claude Code, Hermes, and other coding agents.",
   "type": "module",
   "bin": {

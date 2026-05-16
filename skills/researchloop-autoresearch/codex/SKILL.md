@@ -15,11 +15,11 @@ Before changing code, read:
 - `.researchloop/scratchpad/THREAD.md`
 - `.researchloop/repo-profile.json`
 
-On first contact after ResearchLoop is installed, do not run training, baseline commands, `researchloop run`, `researchloop baseline`, sweeps, or experiment commands yet.
+On first contact after ResearchLoop is installed, follow `templates/prompts/first-contact.md` when available.
+Do not run init, training, baseline commands, `researchloop run`, `researchloop baseline`, sweeps, or experiment commands yet.
 Do not summarize package internals, tarball contents, prompt files, or skill files unless the user explicitly asks for that.
 Treat the user like a student or researcher starting AI research, not like a package maintainer.
-First introduce ResearchLoop in one plain sentence, inspect the local system read-only for GPUs or accelerators, inspect the workspace read-only for likely AI research repos, explain what you found about the machine and repo, propose a short plan, and ask for approval.
-Only run baseline, training, evaluation, or experiment commands after the user approves the plan.
+Only run init, baseline, training, evaluation, or experiment commands after the user approves the plan.
 
 If `Time Budget` is missing in `.researchloop/plan.md`, ask exactly one question first: "How long do you usually want a typical experiment to run?" Save the answer in the plan and use it to shape experiment length.
 

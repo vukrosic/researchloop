@@ -13,7 +13,7 @@ It installs a durable research harness into a machine learning repo so agents li
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-Run npm install -g researchloop if needed. Then help me start AI research: inspect this machine for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and propose a short plan. Do not summarize package internals or prompt files. Do not run training, baselines, sweeps, or experiments until I approve the plan.
+npm install -g researchloop. Act as an automated AI researcher. This package contains the tools and prompts. Follow `templates/prompts/first-contact.md`: only talk to me first, explain my system/GPU/repo in simple language, check whether a baseline exists and where it is documented, and wait for approval before init, training, baselines, sweeps, or experiments.
 ```
 
 ---

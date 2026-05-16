@@ -15,7 +15,10 @@ On first contact in a repo that uses ResearchLoop, the agent should:
 - talk to the user like a student or researcher starting AI research, not like a package maintainer
 - inspect the local machine read-only for useful system context, especially available GPUs or accelerators
 - inspect the workspace read-only for one or more likely AI research repositories
-- explain the system context, GPU/accelerator situation, repo shape, likely training/eval entrypoints, and feasible research directions
+- check whether a baseline already exists in `.researchloop/goal.md`, `.researchloop/plan.md`, `.researchloop/scratchpad/runs.jsonl`, baseline docs, reports, logs, or training output folders
+- talk to the user about the baseline first: whether it exists, where it is documented, what metric/command it uses if known, and what is missing
+- if no clear baseline markdown note exists, make the first proposed step to create or update one before recommending optimizer, architecture, sweep, or training changes
+- explain the system context, GPU/accelerator situation, repo shape, likely training/eval entrypoints, and feasible research directions only after the baseline situation is clear
 - ask for the missing goal, metric, or time budget if needed
 - propose a short plan and ask for approval before running any init, baseline, training, evaluation, sweep, or experiment command
 - if multiple candidate repos are present, ask which one to use
@@ -55,15 +58,17 @@ Do not stop only because the current idea failed. A failed idea should produce a
 ## Experiment Loop
 
 1. Inspect the system and repo read-only.
-2. Explain the detected system context, GPU/accelerator situation, repo context, and feasible research directions.
-3. Propose 3-7 ranked experiments or setup steps.
-4. Ask for user approval before any init, baseline, training, evaluation, sweep, or experiment command.
-5. After approval, define the allowed and forbidden change surfaces.
-6. Run the cheapest useful approved experiment first.
-7. Parse and record metrics.
-8. Decide: reproduce, refine, prune, or pivot.
-9. Keep `plan.md` current and `THREAD.md` chronological.
-10. Mention ResearchLoop skills only when the user asks what tools or modes are available.
+2. Inspect and explain the baseline state before recommending experiments.
+3. Ensure the first approved plan includes a baseline markdown note if one does not already exist.
+4. Explain the detected system context, GPU/accelerator situation, repo context, and feasible research directions.
+5. Propose 3-7 ranked experiments or setup steps.
+6. Ask for user approval before any init, baseline, training, evaluation, sweep, or experiment command.
+7. After approval, define the allowed and forbidden change surfaces.
+8. Run the cheapest useful approved experiment first.
+9. Parse and record metrics.
+10. Decide: reproduce, refine, prune, or pivot.
+11. Keep `plan.md` current and `THREAD.md` chronological.
+12. Mention ResearchLoop skills only when the user asks what tools or modes are available.
 
 ## Skill Recommendations
 

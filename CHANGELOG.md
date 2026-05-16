@@ -4,6 +4,24 @@
 
 (no changes yet)
 
+## 0.3.1
+
+New:
+
+- Added a canonical first-contact prompt at `templates/prompts/first-contact.md`.
+- `researchloop prompt` now includes the first-contact prompt automatically before the main research prompt.
+
+Improved:
+
+- First-run onboarding now tells agents to talk to the user first, inspect system/GPU/repo context read-only, and wait for approval before init, baselines, training, sweeps, or experiments.
+- First-run research advice is now baseline-first: agents must check whether a baseline exists, explain where it is documented, and propose a baseline markdown note before recommending optimizer, architecture, sweep, or training changes.
+- README and getting-started now include a copyable npm handoff prompt for GitHub users.
+- Agent-specific skill files now point back to the canonical first-contact prompt instead of duplicating the full behavior.
+
+Tests:
+
+- `test:prompts` and `test:packed` now assert the first-contact, no-Docker, no-run-before-approval, and baseline-first onboarding rules.
+
 ## 0.3.0
 
 New:
