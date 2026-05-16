@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-site="$(curl -s http://localhost:8000/researchloop/docs/site/index.html)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+site_file="$repo_root/docs/site/index.html"
+
+if [ ! -f "$site_file" ]; then
+  echo "site file missing: $site_file" >&2
+  exit 1
+fi
+
+site="$(cat "$site_file")"
 
 printf '%s' "$site" | grep -q 'Research Loop - Autonomous AI Research, in one prompt'
 printf '%s' "$site" | grep -q 'npm install -g researchloop'

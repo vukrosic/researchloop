@@ -52,7 +52,7 @@ The repo should make the product legible to outside users:
 
 1. Pick one user-visible improvement.
 2. Verify it locally on a clean temp repo.
-3. Verify `npm run smoke` and the affected tests.
+3. Verify `npm test` is green and `npm run test:packed` succeeds.
 4. Bump the version.
 5. Write a short release note with:
    - what changed
@@ -63,6 +63,41 @@ The repo should make the product legible to outside users:
 7. Publish the npm package.
 8. Post the release on X.
 9. Ask one or two users to try the new loop.
+
+## Pre-Publish Checklist
+
+Run this literal checklist for every release. Tick each box in the release PR description.
+
+```text
+[ ] git status clean, on main, up to date with origin
+[ ] CHANGELOG "Unreleased" promoted to the new version with concrete entries
+[ ] ROADMAP "Done (X.Y.Z)" updated; "Next" still accurate
+[ ] package.json version bumped
+[ ] npm test passes locally (all fast tests green)
+[ ] npm run test:packed passes (tarball installs and boots from an isolated prefix)
+[ ] npm pack --dry-run: file count looks right, no researchloop-dev/, no scripts/, no docs/competitors/, no docs/startup/
+[ ] researchloop --version prints the new version (from the packed tarball, not just the linked checkout)
+[ ] README install/quickstart copy-pasted into a fresh shell still works end-to-end
+[ ] docs/site/index.html mentions the new headline feature, if any
+[ ] One LLM-driven onboarding scenario run against the packed tarball; transcript saved in researchloop-dev/transcripts/
+[ ] CI green on the release commit (Node 18 / 20 / 22 on ubuntu + macos)
+[ ] git tag vX.Y.Z, git push --follow-tags
+[ ] npm publish
+[ ] post-publish: install from npm in a fresh shell (npm install -g researchloop), run researchloop --version and researchloop --help
+[ ] GitHub release draft published with the CHANGELOG entry
+```
+
+The "LLM-driven onboarding scenario" uses `researchloop-dev/skills/researchloop-onboarding-tester/SKILL.md`. It is slow and flaky, so it is not part of CI. It is part of the release gate.
+
+## Regression Gate
+
+Three layers, smallest to largest:
+
+1. **`npm test`** runs every fast script in `scripts/test-*.sh`. Every PR must keep this green. CI enforces this on Node 18 / 20 / 22 against ubuntu + macos.
+2. **`npm run test:packed`** packs the tarball, installs it into an isolated npm prefix, and runs the harness end-to-end. Catches `files:` whitelist drift and ESM resolution issues that the linked-checkout path silently masks.
+3. **LLM onboarding scenario** (manual) — a fresh agent in a clean lab folder runs the published onboarding prompt against the packed tarball. Saves the transcript and a short summary into `researchloop-dev/transcripts/` and `researchloop-dev/summaries/`. This catches behavioral regressions (prompt drift, missing target-selection question, sweep-first defaults) that the file-based tests do not see.
+
+If a regression is found, write a failing test for it before fixing it.
 
 ## Release Note Style
 

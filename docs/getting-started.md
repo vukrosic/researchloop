@@ -249,22 +249,18 @@ The intended flow is:
 Run the local checks from this repo:
 
 ```bash
-npm run smoke
-npm run test:compare
-npm run test:setup
-npm run test:prompts
-npm run test:site
-npm run smoke:e2e
+npm test
 ```
 
-These checks verify that:
+That aggregates the full fast suite: `smoke`, `smoke:e2e`, `test:setup`, `test:compare`, `test:run`, `test:scan-papers`, `test:goal`, `test:idea`, `test:team`, `test:dashboard`, `test:prompts`, `test:focus-prompts`, `test:site`, and `test:adapters`.
 
-- the CLI starts
-- the setup flow works in a blank folder
-- `compare` ranks runs
-- prompt templates are clean
-- the website copy matches the product
-- the end-to-end flow works
+Before publishing, also run the packed-tarball install check:
+
+```bash
+npm run test:release
+```
+
+That runs `npm test` plus `test:packed`, which packs the npm tarball, installs it into an isolated prefix, and runs the harness end-to-end. It catches `files:` whitelist regressions that local-link testing silently masks.
 
 ## 12. Use it in a real ML repo
 

@@ -12,6 +12,15 @@ const __filename = fileURLToPath(import.meta.url);
 const packageRoot = path.resolve(path.dirname(__filename), "..");
 const templatesRoot = path.join(packageRoot, "templates");
 
+function packageVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
+    return pkg.version || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 const args = process.argv.slice(2);
 const command = args.find((arg) => !arg.startsWith("-")) || "help";
 
@@ -840,6 +849,15 @@ function cmdDashboard() {
   const cwd = targetDir();
   const host = String(option("--host", "127.0.0.1"));
   const port = Number(option("--port", 8787));
+  const loopbackHosts = new Set(["127.0.0.1", "localhost", "::1"]);
+  if (!loopbackHosts.has(host)) {
+    console.error("");
+    console.error(`WARNING: --host ${host} is not loopback.`);
+    console.error("The dashboard has no auth. Anyone who can reach this address can read");
+    console.error("your run ledger, goal, and plan files. Press Ctrl+C now if that is not");
+    console.error("what you want, and re-run without --host to stay on 127.0.0.1.");
+    console.error("");
+  }
   const dashboardFile = path.join(templatesRoot, "dashboard", "index.html");
   const html = readTextIfExists(dashboardFile);
 
@@ -1521,9 +1539,24 @@ async function cmdScanPapers() {
 
 function cmdTeam() {
   const cwd = targetDir();
+  const force = hasFlag("--force");
   const researchDir = path.join(cwd, ".researchloop");
   ensureDir(researchDir);
   const teamDir = path.join(researchDir, "team");
+  if (fs.existsSync(teamDir) && !force) {
+    let existing = [];
+    try {
+      existing = fs.readdirSync(teamDir);
+    } catch {
+      existing = [];
+    }
+    if (existing.length > 0) {
+      console.error(`team: ${path.relative(cwd, teamDir)} already exists with ${existing.length} entries.`);
+      console.error("Re-run with --force to overwrite (this removes any user edits in that folder).");
+      process.exitCode = 1;
+      return;
+    }
+  }
   const workersRaw = Number(option("--workers", 8));
   const workerCount = Number.isFinite(workersRaw) && workersRaw > 0 ? Math.floor(workersRaw) : 8;
   const goalText =
@@ -1614,7 +1647,7 @@ function cmdTeam() {
 }
 
 function cmdHelp() {
-  console.log(`Research Loop
+  console.log(`Research Loop ${packageVersion()}
 
 Usage:
   researchloop init [--agent codex|claude-code|hermes|cursor] [--dir PATH] [--force]
@@ -1623,20 +1656,25 @@ Usage:
   researchloop idea [--dir PATH] [--goal TEXT] [--write]
   researchloop prompt [--goal TEXT] [--focus hyperparameters|architecture|attention|training-ladder] [--agent NAME]
   researchloop doctor [--dir PATH] [--python PATH]
-  researchloop record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]
+  researchloop record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]    (manual escape hatch; prefer 'run')
   researchloop run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]
   researchloop baseline [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]
   researchloop scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   researchloop compare [--dir PATH] [--metric NAME] [--direction lower|higher]
-  researchloop team [--dir PATH] [--workers N] [--goal TEXT]
+  researchloop team [--dir PATH] [--workers N] [--goal TEXT] [--force]
   researchloop dashboard [--dir PATH] [--host HOST] [--port PORT]
   researchloop report [--dir PATH]
+  researchloop --version
 
 Research Loop installs docs, prompts, scratchpads, and experiment ledgers for autonomous AI research agents.
 `);
 }
 
 async function main() {
+  if (hasFlag("--version") || command === "version") {
+    console.log(packageVersion());
+    return;
+  }
   if (hasFlag("--help") || command === "help") {
     cmdHelp();
   } else if (command === "init") {

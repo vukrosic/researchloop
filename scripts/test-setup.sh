@@ -9,7 +9,7 @@ trap 'rm -rf "$tmp_blank" "$tmp_fixture"' EXIT
 node "$repo_root/bin/researchloop.js" init --agent codex --dir "$tmp_blank" >/tmp/researchloop-setup-init.log
 node "$repo_root/bin/researchloop.js" inspect --dir "$tmp_blank" >/tmp/researchloop-setup-inspect.log
 node "$repo_root/bin/researchloop.js" prompt --goal "improve validation loss" >/tmp/researchloop-setup-prompt.log
-node "$repo_root/bin/researchloop.js" doctor --dir "$tmp_blank" --python /Users/vukrosic/miniconda3/bin/python3 >/tmp/researchloop-setup-doctor.log
+node "$repo_root/bin/researchloop.js" doctor --dir "$tmp_blank" >/tmp/researchloop-setup-doctor.log
 node "$repo_root/bin/researchloop.js" record --dir "$tmp_blank" --id setup-blank-001 --status complete --metric val_loss=1.23 --metric tokens_seen=8 --note "blank repo setup smoke" >/tmp/researchloop-setup-record.log
 node "$repo_root/bin/researchloop.js" report --dir "$tmp_blank" >/tmp/researchloop-setup-report.log
 

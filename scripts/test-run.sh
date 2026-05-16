@@ -55,7 +55,14 @@ if [ "$to_exit" -eq 0 ]; then
 fi
 grep -q "status: timeout" /tmp/researchloop-run-timeout.log
 
+$cli run --dir "$tmpdir" --id run-noisy --command "printf 'epoch 1 val_loss=2.50\nepoch 2 val_loss=1.80\nfinal val_loss=1.10\n'" >/tmp/researchloop-run-noisy.log
+grep -q "val_loss: 1.1" /tmp/researchloop-run-noisy.log
+grep -q "status: complete" /tmp/researchloop-run-noisy.log
+
+$cli run --dir "$tmpdir" --id run-noisy-noise --command "printf 'see val_loss=foo.log for details\nval_loss=0.9\n'" >/tmp/researchloop-run-noisy-noise.log
+grep -q "val_loss: 0.9" /tmp/researchloop-run-noisy-noise.log
+
 $cli compare --dir "$tmpdir" --metric val_loss --direction lower >/tmp/researchloop-run-compare.log
-grep -q "best: run-json = 1.05" /tmp/researchloop-run-compare.log
+grep -q "best: run-noisy-noise = 0.9" /tmp/researchloop-run-compare.log
 
 echo "researchloop test:run passed"

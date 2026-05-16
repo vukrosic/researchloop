@@ -1,6 +1,6 @@
 {
   "name": "researchloop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Install an autonomous AI research harness for Codex, Claude Code, Hermes, and other coding agents.",
   "type": "module",
   "bin": {
@@ -15,9 +15,22 @@
     "docs/getting-started.md",
     "CHANGELOG.md"
   ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vukrosic/researchloop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vukrosic/researchloop/issues"
+  },
+  "homepage": "https://github.com/vukrosic/researchloop#readme",
   "scripts": {
     "smoke": "node ./bin/researchloop.js --help",
     "smoke:e2e": "bash ./scripts/smoke-e2e.sh",
+    "test": "npm run smoke && npm run smoke:e2e && npm run test:setup && npm run test:compare && npm run test:run && npm run test:scan-papers && npm run test:goal && npm run test:idea && npm run test:team && npm run test:dashboard && npm run test:prompts && npm run test:focus-prompts && npm run test:site && npm run test:adapters",
+    "test:release": "npm test && npm run test:packed",
     "test:goal": "bash ./scripts/test-goal.sh",
     "test:idea": "bash ./scripts/test-idea.sh",
     "test:dashboard": "bash ./scripts/test-dashboard.sh",
@@ -28,7 +41,9 @@
     "test:team": "bash ./scripts/test-team.sh",
     "test:prompts": "bash ./scripts/test-prompts.sh",
     "test:focus-prompts": "bash ./scripts/test-focus-prompts.sh",
-    "test:site": "bash ./scripts/test-site.sh"
+    "test:site": "bash ./scripts/test-site.sh",
+    "test:adapters": "bash ./scripts/test-adapters.sh",
+    "test:packed": "bash ./scripts/test-packed.sh"
   },
   "keywords": [
     "ai-research",

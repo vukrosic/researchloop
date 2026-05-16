@@ -1,0 +1,64 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }} / node ${{ matrix.node }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['18.x', '20.x', '22.x']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: install (no deps; no-op)
+        run: npm install --no-package-lock || true
+      - name: npm test
+        run: npm test
+
+  packed:
+    name: packed tarball install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: pack and install from tarball
+        run: npm run test:packed
+
+  pack-dryrun:
+    name: pack dry-run assertions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: assert package contents
+        run: |
+          set -euo pipefail
+          out="$(npm pack --dry-run --json)"
+          count="$(node -e 'const d=JSON.parse(process.argv[1]);process.stdout.write(String(d[0].files.length));' "$out")"
+          echo "file count: $count"
+          test "$count" -ge 30
+          if node -e 'const d=JSON.parse(process.argv[1]);if(d[0].files.some(f=>f.path.startsWith("researchloop-dev/"))){process.exit(1)}' "$out"; then
+            echo "researchloop-dev/ correctly excluded"
+          else
+            echo "researchloop-dev/ leaked into tarball" >&2
+            exit 1
+          fi
+          if node -e 'const d=JSON.parse(process.argv[1]);if(d[0].files.some(f=>f.path.startsWith("scripts/"))){process.exit(1)}' "$out"; then
+            echo "scripts/ correctly excluded"
+          else
+            echo "scripts/ leaked into tarball" >&2
+            exit 1
+          fi

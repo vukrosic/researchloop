@@ -2,15 +2,37 @@
 
 ## Unreleased
 
+(no changes yet)
+
+## 0.3.0
+
 New:
 
-- `researchloop team` writes a local multi-agent development board with orchestrator, reviewer, and worker briefs.
-- `templates/team/` now ships role templates for the development hierarchy.
-- `docs/startup/agent-ops.md` explains the human / orchestrator / worker / reviewer flow for building ResearchLoop itself.
+- `researchloop --version` prints the installed CLI version.
+- `researchloop team` writes a local multi-agent development board with orchestrator, reviewer, and worker briefs. Now refuses to overwrite an existing `.researchloop/team/` without `--force`.
+- `researchloop dashboard --host` prints a loud warning when bound beyond loopback (no auth, anyone on the network could read the run ledger).
+- `templates/team/` ships role templates for the development hierarchy.
+- `docs/startup/agent-ops.md` explains the human / orchestrator / worker / reviewer flow.
+
+Tests and CI:
+
+- New `npm test` aggregate runs every fast check (smoke, smoke:e2e, setup, compare, run, scan-papers, goal, idea, team, dashboard, prompts, focus-prompts, site, adapters).
+- New `test:adapters` covers adapter detection negative cases — filename substrings, missing deps, partial `llm-research-kit` shape.
+- New `test:packed` packs the tarball, installs it into an isolated npm prefix, asserts the file whitelist, and runs `init → goal → prompt → record → report` from the packed binary. Catches `files:` regressions that local-link testing hides.
+- `test:run` now covers the noisy-log case (multiple metric mentions; non-numeric values that should not match).
+- `test:site` no longer depends on a running localhost server.
+- `test:setup` no longer hardcodes a developer's python path.
+- New `.github/workflows/ci.yml` runs `npm test` on Node 18 / 20 / 22 against ubuntu-latest and macos-latest for every push and PR, plus a packed-install job and a pack dry-run assertion job.
 
 Docs:
 
-- README and getting-started now point users to the prompt first and include the team board flow.
+- README and getting-started point users to the prompt first and include the team board flow.
+- CONTRIBUTING now gates PRs on `npm test`.
+- `docs/startup/release-plan.md` has an explicit pre-publish checklist.
+
+Package:
+
+- `package.json` declares `engines.node >= 18` and a `repository` field, so `npm view` / `npm bugs` work and the CLI fails clearly on unsupported Node.
 
 ## 0.2.0
 

@@ -17,6 +17,16 @@
 - Summarize run ledger with `researchloop report`.
 - Provide templates for Codex, Claude Code, Hermes, Cursor, PyTorch, Hugging Face, and generic repos.
 
+## Done (0.3.0)
+
+- `researchloop --version`.
+- `researchloop team` multi-agent dev board with orchestrator, reviewer, and worker briefs; `--force` required to overwrite.
+- `researchloop dashboard --host` warns when bound beyond loopback.
+- `npm test` aggregate plus new `test:adapters`, `test:packed`, and a noisy-log case in `test:run`.
+- `test:site` and `test:setup` no longer depend on machine-specific state.
+- GitHub Actions CI on Node 18 / 20 / 22 across ubuntu and macos.
+- `package.json` declares `engines.node >= 18` and a `repository` field.
+
 ## Done (0.2.0)
 
 - `researchloop run` and `researchloop baseline` execute commands and parse metrics into the ledger.

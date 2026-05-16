@@ -143,9 +143,11 @@ The startup plan is in `docs/startup/`.
 - `researchloop report` summarizes the run ledger.
 - `researchloop dashboard` starts a local localhost dashboard for experiment tracking.
 - `researchloop doctor` checks basic local tooling.
+- `npm test` runs every fast check below in sequence. CI runs this on Node 18 / 20 / 22 against ubuntu and macos for every push and PR.
+- `npm run test:release` adds the packed-tarball install check on top of `npm test`. Run this before publishing.
 - `npm run test:setup` runs the blank-repo and minimal-fixture setup checks.
 - `npm run test:compare` checks comparison output for a few recorded runs.
-- `npm run test:run` checks `run` and `baseline` against deterministic shell commands.
+- `npm run test:run` checks `run` and `baseline` against deterministic shell commands, including a noisy-log case.
 - `npm run test:scan-papers` checks the arXiv scan path against a recorded XML fixture (no network).
 - `npm run test:goal` checks goal saving and prompt handoff.
 - `npm run test:idea` checks the chat-first idea prompt for a blank repo, an llm-research-kit-shaped repo, and a paper-augmented repo.
@@ -153,7 +155,9 @@ The startup plan is in `docs/startup/`.
 - `npm run test:dashboard` checks the local dashboard server and API.
 - `npm run test:prompts` checks prompt templates for placeholder drift.
 - `npm run test:focus-prompts` checks the hyperparameter, architecture, and attention playbooks.
-- `npm run test:site` checks the public landing page copy.
+- `npm run test:site` checks the public landing page copy (reads the file directly; no server needed).
+- `npm run test:adapters` checks repo-shape adapter detection against negative cases.
+- `npm run test:packed` packs the tarball, installs into an isolated npm prefix, and runs the harness end-to-end.
 
 ## Open Source
 
