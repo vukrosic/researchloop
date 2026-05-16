@@ -99,7 +99,6 @@ The next improvements should be boring and practical:
 - one more adapter if a user actually needs it
 - better `researchloop compare` output
 - a richer dashboard view
-- a clearer `researchloop idea` output for architecture and hyperparameter sweeps
+- a clearer `researchloop idea` flow that starts from repo history and chat, then suggests real research ideas instead of defaulting to sweeps
 
 The first release after launch should focus on removing friction from the first 10 minutes.
-

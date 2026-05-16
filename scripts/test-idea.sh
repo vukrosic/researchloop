@@ -23,18 +23,20 @@ node ./bin/researchloop.js record --dir "$tmp_llm" --id llm-alt --status complet
 node ./bin/researchloop.js record --dir "$tmp_llm" --id llm-worse --status complete --metric val_loss=1.58 --note "worse run" >/tmp/researchloop-idea-llm-record-3.log
 node ./bin/researchloop.js idea --dir "$tmp_llm" >/tmp/researchloop-idea-llm.log
 
-grep -q "Research Ideas" /tmp/researchloop-idea-blank.log
-grep -q "Find the baseline" /tmp/researchloop-idea-blank.log
-grep -q "Idea note written to" /tmp/researchloop-idea-blank.log
+grep -q "Research Idea Chat" /tmp/researchloop-idea-blank.log
+grep -q "Ask exactly one question first" /tmp/researchloop-idea-blank.log
+grep -q "How long do you usually want a typical experiment to run?" /tmp/researchloop-idea-blank.log
+grep -q "Idea chat prompt written to" /tmp/researchloop-idea-blank.log
 test -f "$tmp_blank/.researchloop/scratchpad/ideas/"*.md
 
-grep -q "Research Ideas" /tmp/researchloop-idea-llm.log
-grep -q "Experiment History" /tmp/researchloop-idea-llm.log
+grep -q "Research Idea Chat" /tmp/researchloop-idea-llm.log
+grep -q "System:" /tmp/researchloop-idea-llm.log
+grep -q "Recent runs:" /tmp/researchloop-idea-llm.log
 grep -q "llm-baseline" /tmp/researchloop-idea-llm.log
 grep -q "llm-alt" /tmp/researchloop-idea-llm.log
-grep -q "Reconstruct the last meaningful comparison" /tmp/researchloop-idea-llm.log
-grep -q "Best: llm-alt = 1.31" /tmp/researchloop-idea-llm.log
-grep -q "No run history found" /tmp/researchloop-idea-blank.log
+grep -q "3-5 actual research ideas" /tmp/researchloop-idea-llm.log
+grep -q "Do not default to generic learning-rate or hyperparameter sweeps" /tmp/researchloop-idea-llm.log
+grep -q "How long do you usually want a typical experiment to run?" /tmp/researchloop-idea-llm.log
 
 tmp_papers="$(mktemp -d)"
 trap 'rm -rf "$tmp_blank" "$tmp_llm" "$tmp_papers"' EXIT
@@ -43,8 +45,8 @@ node ./bin/researchloop.js goal --dir "$tmp_papers" "lower validation loss" --me
 RESEARCHLOOP_ARXIV_FIXTURE="$(cd "$(dirname "$0")/.." && pwd)/examples/fixtures/arxiv-sample.xml" \
 node ./bin/researchloop.js scan-papers --dir "$tmp_papers" --cache-dir "$(mktemp -d)" --limit 3 >/tmp/researchloop-idea-papers-scan.log
 node ./bin/researchloop.js idea --dir "$tmp_papers" >/tmp/researchloop-idea-papers.log
-grep -q "Read paper:" /tmp/researchloop-idea-papers.log
-grep -q "Efficient Learning Rate Schedules" /tmp/researchloop-idea-papers.log
-grep -q "arXiv 2503.12345v1" /tmp/researchloop-idea-papers.log
+grep -q "Recent papers:" /tmp/researchloop-idea-papers.log
+grep -q "2503.12345v1" /tmp/researchloop-idea-papers.log
+grep -q "You are preparing research ideas by talking with the user" /tmp/researchloop-idea-papers.log
 
 echo "researchloop test:idea passed"

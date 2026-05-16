@@ -9,6 +9,7 @@ These skills are the agent-side memory layer that makes the research loop stick.
 
 - `researchloop-autoresearch/` - the main research skill pack
 - `researchloop-autoresearch/references/` - focused playbooks for common experiment families
+- `researchloop-training-ladder/` - a staged small-to-long training mode for pruning and promotion
 
 ## How users use it
 

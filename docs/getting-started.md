@@ -18,6 +18,7 @@ If no target repo is obvious, use this rule:
 5. If the user has neither, offer either a disposable demo repo or the local `llm-research-kit` repo as the no-friction fallback.
 
 When the repo already has history, read `.researchloop/scratchpad/runs.jsonl` and `.researchloop/scratchpad/THREAD.md` first, then propose the next experiment from that evidence instead of defaulting to a sweep.
+If `.researchloop/plan.md` does not already have a time budget, ask one question first: "How long do you usually want a typical experiment to run?" Save the answer in `Time Budget` and use it to shape later suggestions.
 
 ## 1. Give This Prompt To Your Agent
 
@@ -106,7 +107,7 @@ That saves the objective into `.researchloop/goal.md`, which the agent and the p
 researchloop idea --write
 ```
 
-This prints a ranked list of small experiments for the current repo shape. For `llm-research-kit`, that usually means baseline checks, learning-rate sweeps, and tiny architecture changes. For a generic repo, it starts with finding the baseline and metric plumbing.
+This prints a chat-first idea prompt that reads the repo history, asks for the typical experiment length if needed, and then asks the LLM to propose a few real research ideas. For `llm-research-kit`, that usually means baseline checks, history-aware follow-ups, and the staged training ladder when the repo history says longer runs are justified. For a generic repo, it starts with finding the baseline and the real mechanism to test.
 
 ## 6. Inspect the repo
 
@@ -136,6 +137,7 @@ You can also attach a focused playbook:
 researchloop prompt --agent codex --focus hyperparameters
 researchloop prompt --agent codex --focus architecture
 researchloop prompt --agent codex --focus attention
+researchloop prompt --agent codex --focus training-ladder
 ```
 
 That prompt tells the agent to:
@@ -156,6 +158,7 @@ It contains the same research loop as agent-local skills:
 - `skills/researchloop-autoresearch/codex/SKILL.md`
 - `skills/researchloop-autoresearch/claude-code/CLAUDE.md`
 - `skills/researchloop-autoresearch/references/*.md`
+- `skills/researchloop-training-ladder/SKILL.md`
 
 Use those files when you want the agent itself to carry the research rules, not just the current prompt.
 
@@ -172,6 +175,7 @@ If you want the prompt to narrow in on a family of experiments, use one of the b
 - `hyperparameters`
 - `architecture`
 - `attention`
+- `training-ladder`
 
 ## 8. Record and compare runs
 

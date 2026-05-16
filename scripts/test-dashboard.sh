@@ -16,8 +16,9 @@ trap cleanup EXIT
 
 node ./bin/researchloop.js init --agent codex --dir "$tmpdir" >/tmp/researchloop-dashboard-init.log
 node ./bin/researchloop.js goal --dir "$tmpdir" "lower validation loss" --metric val_loss --direction lower >/tmp/researchloop-dashboard-goal.log
-node ./bin/researchloop.js record --dir "$tmpdir" --id run-a --status complete --metric val_loss=3.20 --metric tokens_seen=64 --note "first dashboard run" >/tmp/researchloop-dashboard-run-a.log
-node ./bin/researchloop.js record --dir "$tmpdir" --id run-b --status complete --metric val_loss=2.90 --metric tokens_seen=128 --note "second dashboard run" >/tmp/researchloop-dashboard-run-b.log
+node ./bin/researchloop.js run --dir "$tmpdir" --id run-a --metric val_loss --command "printf 'val_loss=3.20\nval_loss=3.00\nval_loss=2.85\n'" >/tmp/researchloop-dashboard-run-a.log
+node ./bin/researchloop.js run --dir "$tmpdir" --id run-b --metric val_loss --command "printf 'val_loss=3.10\nval_loss=2.95\nval_loss=2.70\n'" >/tmp/researchloop-dashboard-run-b.log
+node ./bin/researchloop.js run --dir "$tmpdir" --id run-c --metric val_loss --command "printf 'val_loss=2.95\nval_loss=2.80\nval_loss=2.60\n'" >/tmp/researchloop-dashboard-run-c.log
 
 node ./bin/researchloop.js dashboard --dir "$tmpdir" --port 0 >"$logfile" 2>&1 &
 pid=$!
@@ -43,10 +44,16 @@ state="$(curl -s "$url/api/state")"
 page="$(curl -s "$url/")"
 
 printf '%s' "$page" | grep -q 'ResearchLoop Dashboard'
-printf '%s' "$page" | grep -q 'Local experiment tracking'
+printf '%s' "$page" | grep -q 'Loss comparison'
+printf '%s' "$page" | grep -q 'Experiments'
 printf '%s' "$state" | grep -q '"primaryMetric": "val_loss"'
-printf '%s' "$state" | grep -q '"bestRun"'
-printf '%s' "$state" | grep -q '"run-b"'
-printf '%s' "$state" | grep -q '"val_loss": 2.9'
+printf '%s' "$state" | grep -q '"traces"'
+printf '%s' "$state" | grep -q '"comparison"'
+printf '%s' "$state" | grep -q '"run-c"'
+printf '%s' "$state" | grep -q '"metric_history"'
+printf '%s' "$state" | grep -q '"val_loss": \['
+printf '%s' "$state" | grep -q '3.1'
+printf '%s' "$state" | grep -q '2.95'
+printf '%s' "$state" | grep -q '2.7'
 
 echo "researchloop test:dashboard passed"

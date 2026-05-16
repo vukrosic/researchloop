@@ -11,6 +11,11 @@ The chronological log belongs in `scratchpad/THREAD.md`.
 - Running jobs: none
 - Next action: inspect repo and establish baseline
 
+## Time Budget
+
+- Usual experiment length: unknown
+- Notes: ask the user once, record the answer here, and use it to set realistic time bands
+
 ## Picklist
 
 1. Establish baseline.

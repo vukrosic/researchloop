@@ -15,6 +15,8 @@ Before changing code, read:
 - `.researchloop/scratchpad/THREAD.md`
 - `.researchloop/repo-profile.json`
 
+If `Time Budget` is missing in `.researchloop/plan.md`, ask exactly one question first: "How long do you usually want a typical experiment to run?" Save the answer in the plan and use it to shape experiment length.
+
 Then work in this order:
 
 1. Confirm the baseline.
@@ -47,4 +49,3 @@ If the task is clearly one of these families, load the matching reference:
 - hyperparameters -> `references/hyperparameters.md`
 - architecture -> `references/architecture.md`
 - attention -> `references/attention.md`
-

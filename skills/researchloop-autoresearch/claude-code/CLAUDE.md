@@ -10,6 +10,8 @@ Before changing code, read:
 - `.researchloop/scratchpad/THREAD.md`
 - `.researchloop/repo-profile.json`
 
+If `Time Budget` is missing in `.researchloop/plan.md`, ask exactly one question first: "How long do you usually want a typical experiment to run?" Save the answer in the plan and use it to shape experiment length.
+
 Then:
 
 1. confirm the baseline

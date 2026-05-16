@@ -241,45 +241,62 @@
         font-size: 13px;
       }
 
-      .table-wrap {
-        overflow: auto;
+      .legend {
+        display: grid;
+        gap: 8px;
       }
 
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 860px;
-      }
-
-      th,
-      td {
+      .legend-item,
+      .run-card {
+        display: grid;
+        gap: 6px;
         padding: 12px 14px;
-        border-bottom: 1px solid var(--line);
-        text-align: left;
-        vertical-align: top;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
       }
 
-      th {
+      .legend-item {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
+
+      .legend-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .legend-name,
+      .run-title {
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .legend-sub,
+      .run-sub {
         color: var(--muted);
         font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        background: rgba(255, 255, 255, 0.02);
       }
 
-      td {
+      .legend-value {
         color: var(--soft);
         font-size: 13px;
+        white-space: nowrap;
       }
 
-      .best {
-        color: var(--accent);
-        font-weight: 600;
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
       }
 
-      .worst {
-        color: var(--danger);
-        font-weight: 600;
+      .run-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
       }
 
       .empty {
@@ -318,37 +335,42 @@
       <section class="top-grid">
         <article class="panel">
           <div class="panel-head">
-            <h2>Research goal</h2>
+            <h2>Loss comparison</h2>
             <span class="pill" id="goalMetricPill">Metric: loading</span>
           </div>
           <div class="panel-body">
             <div class="goal-title" id="goalTitle">Loading…</div>
             <div class="meta-row" id="goalMeta"></div>
-            <pre id="goalBody"></pre>
+            <div class="chart-label">
+              <span id="trendLabel">No numeric metric yet.</span>
+              <span id="trendRange"></span>
+            </div>
+            <div id="chartMount"></div>
+            <div id="legendMount" class="legend"></div>
           </div>
         </article>
 
         <article class="panel">
           <div class="panel-head">
-            <h2>Overview</h2>
-            <span class="pill" id="repoPill">Localhost only</span>
+            <h2>Snapshot</h2>
+            <span class="pill" id="repoType">Detecting</span>
           </div>
           <div class="panel-body">
             <div class="stats">
               <div class="stat">
                 <div class="label">Runs</div>
                 <div class="value" id="statRuns">0</div>
-                <div class="sub">All recorded entries in runs.jsonl</div>
+                <div class="sub">All recorded entries</div>
               </div>
               <div class="stat">
-                <div class="label">Complete</div>
-                <div class="value" id="statComplete">0</div>
-                <div class="sub">Runs marked complete or completed</div>
-              </div>
-              <div class="stat">
-                <div class="label">Best</div>
+                <div class="label">Best final</div>
                 <div class="value" id="statBest">-</div>
                 <div class="sub" id="statBestSub">No metric yet</div>
+              </div>
+              <div class="stat">
+                <div class="label">Biggest drop</div>
+                <div class="value" id="statDrop">-</div>
+                <div class="sub" id="statDropSub">Waiting for curves</div>
               </div>
               <div class="stat">
                 <div class="label">Latest</div>
@@ -356,59 +378,20 @@
                 <div class="sub" id="statLatestSub">Waiting for the first run</div>
               </div>
             </div>
-          </div>
-        </article>
-      </section>
-
-      <section class="secondary-grid">
-        <article class="panel">
-          <div class="panel-head">
-            <h2>Metric trend</h2>
-            <span class="pill" id="trendMetric">No metric selected</span>
-          </div>
-          <div class="panel-body sparkline-wrap">
-            <div class="chart-label">
-              <span id="trendLabel">No numeric metric yet.</span>
-              <span id="trendRange"></span>
-            </div>
-            <div id="chartMount"></div>
-          </div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head">
-            <h2>Repo context</h2>
-            <span class="pill" id="repoType">Detecting</span>
-          </div>
-          <div class="panel-body">
             <div class="meta-row" id="repoMeta"></div>
-            <pre id="planText"></pre>
           </div>
         </article>
       </section>
 
       <section class="panel">
         <div class="panel-head">
-          <h2>Runs</h2>
+          <h2>Experiments</h2>
           <span class="pill" id="runHint">Loading</span>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Status</th>
-                <th>Primary metric</th>
-                <th>Time</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody id="runsBody">
-              <tr>
-                <td colspan="5" class="empty">Loading runs…</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="panel-body">
+          <div id="runsGrid" class="run-grid">
+            <div class="empty">Loading experiments…</div>
+          </div>
         </div>
       </section>
 
@@ -437,12 +420,6 @@
         return date.toLocaleString();
       }
 
-      function metricFromRun(run, key) {
-        if (!run || !run.metrics || key == null) return "-";
-        const value = run.metrics[key];
-        return Number.isFinite(Number(value)) ? Number(value).toFixed(4) : String(value);
-      }
-
       function renderPills(items) {
         return items
           .filter(Boolean)
@@ -450,30 +427,59 @@
           .join("");
       }
 
-      function sparkline(series, preferHigher) {
-        if (!series || !series.length) {
+      function metricLabel(metricKey, value) {
+        if (!metricKey || !Number.isFinite(Number(value))) return "-";
+        return `${metricKey}: ${Number(value).toFixed(4)}`;
+      }
+
+      function deltaLabel(delta, preferHigher) {
+        if (!Number.isFinite(Number(delta))) return "-";
+        const sign = delta > 0 ? "+" : "";
+        const direction = preferHigher ? "gain" : "drop";
+        return `${sign}${Number(delta).toFixed(4)} ${direction}`;
+      }
+
+      function multiTraceChart(traces, preferHigher) {
+        if (!traces || !traces.length) {
           return '<div class="empty">No numeric metric data yet.</div>';
         }
 
-        const width = 860;
-        const height = 220;
-        const pad = 20;
-        const values = series.map((point) => Number(point.value));
-        const min = Math.min(...values);
-        const max = Math.max(...values);
+        const width = 960;
+        const height = 280;
+        const pad = 24;
+        const allValues = traces.flatMap((trace) => trace.values.map((point) => Number(point.value)).filter((value) => Number.isFinite(value)));
+        if (!allValues.length) {
+          return '<div class="empty">No numeric metric data yet.</div>';
+        }
+        const min = Math.min(...allValues);
+        const max = Math.max(...allValues);
         const range = max - min || 1;
-        const points = values
-          .map((value, index) => {
-            const x = pad + ((width - pad * 2) * (series.length === 1 ? 0.5 : index / (series.length - 1)));
-            const y = height - pad - ((value - min) / range) * (height - pad * 2);
-            return `${x},${y}`;
-          })
-          .join(" ");
-
+        const maxLen = Math.max(...traces.map((trace) => trace.values.length || 1));
         const marker = preferHigher ? "higher is better" : "lower is better";
-        const last = series[series.length - 1];
+
+        const linePaths = traces.map((trace) => {
+          const points = trace.values
+            .map((point, index) => {
+              const x = pad + ((width - pad * 2) * (maxLen === 1 ? 0.5 : index / (maxLen - 1)));
+              const y = height - pad - ((Number(point.value) - min) / range) * (height - pad * 2);
+              return `${x},${y}`;
+            })
+            .join(" ");
+          const lastPoint = trace.values[trace.values.length - 1];
+          const lastX = pad + ((width - pad * 2) * (maxLen === 1 ? 0.5 : (trace.values.length - 1) / (maxLen - 1)));
+          const lastY = height - pad - ((Number(lastPoint.value) - min) / range) * (height - pad * 2);
+          const stroke = trace.color || "#62d6a6";
+          const dash = trace.status === "failed" || trace.status === "timeout" ? "6 4" : "0";
+          return `
+            <g opacity="${trace.status === "complete" || trace.status === "completed" ? "1" : "0.72"}">
+              <polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${dash}" />
+              <circle cx="${lastX}" cy="${lastY}" r="4.5" fill="${stroke}" />
+            </g>
+          `;
+        }).join("");
+
         return `
-          <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Metric sparkline">
+          <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Per-experiment loss comparison">
             <defs>
               <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stop-color="#62d6a6" />
@@ -482,54 +488,83 @@
             </defs>
             <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" stroke="rgba(255,255,255,0.08)" />
             <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" stroke="rgba(255,255,255,0.08)" />
-            <polyline points="${points}" fill="none" stroke="url(#lineGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-            <circle cx="${width - pad}" cy="${height - pad - ((Number(last.value) - min) / range) * (height - pad * 2)}" r="5" fill="#62d6a6" />
+            ${linePaths}
             <text x="${pad}" y="${pad - 4}" fill="rgba(255,255,255,0.55)" font-size="12">${marker}</text>
           </svg>
         `;
       }
 
+      function renderLegend(state) {
+        const metricKey = state.primaryMetric || "";
+        const traces = state.traces || [];
+        if (!traces.length) {
+          return '<div class="empty">No experiments recorded yet. Use <code>researchloop run</code> to add curves.</div>';
+        }
+
+        const bestId = state.comparison?.bestFinal?.trace?.id;
+        const bestImprovementId = state.comparison?.bestImprovement?.trace?.id;
+        return traces
+          .map((trace) => {
+            const firstValue = trace.values?.[0]?.value;
+            const finalValue = trace.final;
+            const delta = Number.isFinite(Number(firstValue)) && Number.isFinite(Number(finalValue))
+              ? (trace.values.length ? (firstValue - finalValue) : Number.NaN)
+              : Number.NaN;
+            const isBest = trace.id === bestId;
+            const isImproved = trace.id === bestImprovementId;
+            return `
+              <div class="legend-item">
+                <div class="legend-left">
+                  <span class="dot" style="background:${trace.color}; box-shadow: 0 0 0 2px color-mix(in srgb, ${trace.color} 20%, transparent);"></span>
+                  <div style="min-width:0">
+                    <div class="legend-name">${escapeHtml(trace.id || "-")}${isBest ? " · best final" : ""}${isImproved ? " · biggest drop" : ""}</div>
+                    <div class="legend-sub">${escapeHtml(trace.status || "-")} · ${trace.values.length} points</div>
+                  </div>
+                </div>
+                <div class="legend-value">
+                  ${escapeHtml(metricLabel(metricKey, finalValue))}<br />
+                  ${escapeHtml(deltaLabel(delta, state.preferHigher))}
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
       function renderRuns(state) {
         const metricKey = state.primaryMetric || "";
-        const bestId = state.summary?.bestRun?.run?.id;
-        const worstId = state.summary?.worstRun?.run?.id;
+        const traces = state.traces || [];
         const rows = (state.runs || []).filter((run) => !run.parse_error);
 
         if (!rows.length) {
-          document.getElementById("runsBody").innerHTML =
-            '<tr><td colspan="5" class="empty">No runs recorded yet. Use <code>researchloop record</code> after the next experiment.</td></tr>';
+          document.getElementById("runsGrid").innerHTML =
+            '<div class="empty">No runs recorded yet. Use <code>researchloop run</code> after the next experiment.</div>';
           return;
         }
 
+        const byId = new Map(traces.map((trace) => [trace.id, trace]));
         const html = rows
           .slice()
           .reverse()
           .map((run) => {
-            const isBest = bestId && run.id === bestId;
-            const isWorst = worstId && run.id === worstId;
-            const metricValue = metricFromRun(run, metricKey);
-            const metricClass = isBest ? "best" : isWorst ? "worst" : "";
-            const metrics = run.metrics || {};
-            const metricSummary = metricKey
-              ? `${metricKey}: ${metricValue}`
-              : Object.entries(metrics)
-                  .slice(0, 3)
-                  .map(([key, value]) => `${key}=${value}`)
-                  .join(", ");
-            const note = run.notes ? escapeHtml(run.notes) : "-";
+            const trace = byId.get(run.id) || null;
+            const finalValue = trace ? trace.final : run.metrics?.[metricKey];
+            const firstValue = trace && trace.values.length ? trace.values[0].value : Number.NaN;
+            const delta = Number.isFinite(Number(firstValue)) && Number.isFinite(Number(finalValue))
+              ? (firstValue - finalValue)
+              : Number.NaN;
             return `
-              <tr>
-                <td><strong>${escapeHtml(run.id || "-")}</strong></td>
-                <td>${escapeHtml(run.status || "-")}</td>
-                <td class="${metricClass}">${escapeHtml(metricSummary || "-")}</td>
-                <td>${escapeHtml(formatTime(run.timestamp))}</td>
-                <td>${note}</td>
-              </tr>
+              <div class="run-card">
+                <div class="run-title">${escapeHtml(run.id || "-")}</div>
+                <div class="run-sub">${escapeHtml(run.status || "-")} · ${trace ? trace.values.length : 0} points</div>
+                <div class="run-sub">${escapeHtml(metricLabel(metricKey, finalValue))}</div>
+                <div class="run-sub">${escapeHtml(deltaLabel(delta, state.preferHigher))}</div>
+              </div>
             `;
           })
           .join("");
 
-        document.getElementById("runsBody").innerHTML = html;
+        document.getElementById("runsGrid").innerHTML = html;
       }
 
       function render(state) {
@@ -537,17 +572,15 @@
         const goal = state.goal || {};
         const summary = state.summary || {};
         const repoProfile = state.repoProfile || {};
-        const plan = state.plan || {};
+        const traces = state.traces || [];
 
         document.getElementById("statusText").textContent =
           `Updated ${formatTime(state.generatedAt)} · ${summary.totalRuns || 0} runs`;
-        document.getElementById("repoPill").textContent = repoProfile.cwd ? "Repo loaded" : "Repo unknown";
         document.getElementById("repoType").textContent = Array.isArray(repoProfile.adapters)
           ? repoProfile.adapters.join(", ")
           : "generic";
 
         document.getElementById("goalTitle").textContent = goal.goal || "Set a research goal with `researchloop goal`.";
-        document.getElementById("goalBody").textContent = goal.raw || "No goal file found yet.";
         document.getElementById("goalMetricPill").textContent = goal.metric
           ? `Metric: ${goal.metric}`
           : "Metric: not set";
@@ -559,25 +592,32 @@
         document.getElementById("goalMeta").innerHTML = renderPills(goalMeta);
 
         document.getElementById("statRuns").textContent = summary.totalRuns || 0;
-        document.getElementById("statComplete").textContent = summary.completeRuns || 0;
 
-        if (summary.bestRun) {
-          document.getElementById("statBest").textContent = metricKeyLabel(state.primaryMetric, summary.bestRun.value);
-          document.getElementById("statBestSub").textContent = `${summary.bestRun.run.id} · ${formatTime(summary.bestRun.run.timestamp)}`;
+        if (state.comparison?.bestFinal) {
+          document.getElementById("statBest").textContent = metricLabel(state.primaryMetric, state.comparison.bestFinal.final);
+          document.getElementById("statBestSub").textContent = `${state.comparison.bestFinal.trace.id} · ${state.comparison.bestFinal.trace.values.length} points`;
         } else {
           document.getElementById("statBest").textContent = "-";
           document.getElementById("statBestSub").textContent = "No metric data yet";
         }
 
+        if (state.comparison?.bestImprovement) {
+          document.getElementById("statDrop").textContent = deltaLabel(state.comparison.bestImprovement.delta, state.preferHigher);
+          document.getElementById("statDropSub").textContent = `${state.comparison.bestImprovement.trace.id} · biggest change`;
+        } else {
+          document.getElementById("statDrop").textContent = "-";
+          document.getElementById("statDropSub").textContent = "Waiting for curves";
+        }
+
         if (summary.latestRun) {
+          const latestTrace = traces.find((trace) => trace.id === summary.latestRun.id);
           document.getElementById("statLatest").textContent = summary.latestRun.id || "-";
-          document.getElementById("statLatestSub").textContent = `${summary.latestRun.status || "-"} · ${formatTime(summary.latestRun.timestamp)}`;
+          document.getElementById("statLatestSub").textContent = `${summary.latestRun.status || "-"} · ${latestTrace ? `${latestTrace.values.length} points` : formatTime(summary.latestRun.timestamp)}`;
         } else {
           document.getElementById("statLatest").textContent = "-";
           document.getElementById("statLatestSub").textContent = "Waiting for the first run";
         }
 
-        document.getElementById("planText").textContent = plan.raw || "No plan file yet.";
         document.getElementById("repoMeta").innerHTML = renderPills([
           repoProfile.cwd ? `<strong>Repo:</strong> ${escapeHtml(repoProfile.cwd)}` : "",
           Array.isArray(repoProfile.package_files) && repoProfile.package_files.length
@@ -586,27 +626,20 @@
           repoProfile.git_branch ? `<strong>Branch:</strong> ${escapeHtml(repoProfile.git_branch)}` : "",
         ]);
 
-        document.getElementById("trendMetric").textContent = state.primaryMetric
-          ? `Metric: ${state.primaryMetric}`
-          : "No metric selected";
         document.getElementById("trendLabel").textContent = state.primaryMetric
-          ? `Tracking ${state.primaryMetric} across recorded runs.`
+          ? `Comparing ${state.primaryMetric} across recorded experiments.`
           : "No numeric metric found yet.";
-        document.getElementById("trendRange").textContent = summary.series && summary.series.length
-          ? `${summary.series.length} points`
+        document.getElementById("trendRange").textContent = state.traces && state.traces.length
+          ? `${state.traces.length} experiments`
           : "";
-        document.getElementById("chartMount").innerHTML = sparkline(summary.series, state.preferHigher);
+        document.getElementById("chartMount").innerHTML = multiTraceChart(state.traces, state.preferHigher);
+        document.getElementById("legendMount").innerHTML = renderLegend(state);
 
         document.getElementById("runHint").textContent = summary.parseErrors
           ? `${summary.parseErrors} parse errors`
-          : `${summary.totalRuns || 0} entries`;
+          : `${summary.totalRuns || 0} experiments`;
 
         renderRuns(state);
-      }
-
-      function metricKeyLabel(metricKey, value) {
-        if (!metricKey) return "-";
-        return `${metricKey}: ${Number(value).toFixed(4)}`;
       }
 
       async function refresh() {

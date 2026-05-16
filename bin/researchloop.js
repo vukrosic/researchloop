@@ -554,9 +554,20 @@ function parsePlanFile(planFile) {
   return {
     raw,
     currentState: parseMarkdownSection(raw, "Current State") || "",
+    timeBudget: parseMarkdownSection(raw, "Time Budget") || "",
     picklist: parseMarkdownSection(raw, "Picklist") || "",
     ruledOut: parseMarkdownSection(raw, "Ruled Out") || "",
   };
+}
+
+function normalizeTimeBudget(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+  const lowered = trimmed.toLowerCase();
+  if (lowered.includes("usual experiment length: unknown")) return "";
+  if (lowered === "unknown") return "";
+  if (lowered.includes("ask the user once")) return "";
+  return trimmed;
 }
 
 function parseRunsLedger(ledgerFile) {
@@ -573,6 +584,114 @@ function parseRunsLedger(ledgerFile) {
         return { parse_error: true, raw: row };
       }
     });
+}
+
+function extractMetricSeriesFromText(text, metricName, customRegexSource) {
+  const regex = customRegexSource
+    ? new RegExp(customRegexSource, "gi")
+    : defaultMetricRegex(metricName);
+  const values = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const raw = match[1] !== undefined ? match[1] : match[0];
+    const value = Number(raw);
+    if (Number.isFinite(value)) {
+      values.push(value);
+    }
+  }
+  return values;
+}
+
+function readRunMetricSeries(cwd, run, metricName, customRegexSource) {
+  const stored = run?.metric_history?.[metricName];
+  if (Array.isArray(stored) && stored.length) {
+    return stored.map((value, index) => ({
+      step: index + 1,
+      value: Number(value),
+    })).filter((point) => Number.isFinite(point.value));
+  }
+
+  const logPath = run?.log ? path.join(cwd, run.log) : null;
+  if (!logPath || !fs.existsSync(logPath)) {
+    return [];
+  }
+  const values = extractMetricSeriesFromText(readTextIfExists(logPath), metricName, customRegexSource);
+  return values.map((value, index) => ({
+    step: index + 1,
+    value,
+  }));
+}
+
+function summarizeTraces(traces, preferHigher = false) {
+  const finalEntries = traces
+    .map((trace) => ({ trace, final: Number(trace.final) }))
+    .filter((entry) => Number.isFinite(entry.final));
+  const sorted = finalEntries
+    .slice()
+    .sort((a, b) => (preferHigher ? b.final - a.final : a.final - b.final));
+  const bestFinal = sorted[0] || null;
+  const worstFinal = sorted[sorted.length - 1] || null;
+
+  const improved = traces
+    .map((trace) => {
+      const first = Number(trace.values?.[0]);
+      const final = Number(trace.final);
+      return {
+        trace,
+        delta: Number.isFinite(first) && Number.isFinite(final)
+          ? (preferHigher ? final - first : first - final)
+          : Number.NaN,
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.delta))
+    .sort((a, b) => b.delta - a.delta);
+
+  return {
+    bestFinal,
+    worstFinal,
+    bestImprovement: improved[0] || null,
+  };
+}
+
+function buildRunTraces(cwd, runs, primaryMetric, preferHigher, customRegexSource) {
+  const palette = [
+    "#62d6a6",
+    "#71a7ff",
+    "#f6c177",
+    "#ff8b8b",
+    "#c38bff",
+    "#6ee7e7",
+  ];
+
+  return runs
+    .filter((run) => !run.parse_error)
+    .map((run, index) => {
+      const values = readRunMetricSeries(cwd, run, primaryMetric, customRegexSource);
+      const finalFromMetrics = Number(run?.metrics?.[primaryMetric]);
+      const final = Number.isFinite(finalFromMetrics)
+        ? finalFromMetrics
+        : Number(values.length ? values[values.length - 1].value : Number.NaN);
+      const fallbackValues = values.length
+        ? values
+        : (Number.isFinite(final) ? [{ step: 1, value: final }] : []);
+      return {
+        id: run.id,
+        status: run.status,
+        final,
+        values: fallbackValues,
+        log: run.log || "",
+        notes: run.notes || "",
+        color: palette[index % palette.length],
+        isBest: false,
+        isLatest: false,
+        index,
+      };
+    })
+    .filter((trace) => trace.values.length || Number.isFinite(trace.final))
+    .map((trace) => ({
+      ...trace,
+      final: Number.isFinite(trace.final) ? trace.final : (trace.values.length ? trace.values[trace.values.length - 1].value : Number.NaN),
+    }));
 }
 
 function readExperimentHistory(cwd) {
@@ -604,8 +723,16 @@ function readExperimentHistory(cwd) {
     summary,
     recentRuns: runs.slice(-3),
     threadTail,
+    timeBudget: normalizeTimeBudget(plan.timeBudget || ""),
     hasHistory: runs.length > 0 || Boolean(threadTail),
   };
+}
+
+function readSystemSummary() {
+  const cores = os.cpus().length;
+  const memoryGiB = Math.max(1, Math.round(os.totalmem() / (1024 * 1024 * 1024)));
+  const scale = memoryGiB <= 16 ? "laptop-scale" : memoryGiB <= 32 ? "desktop-scale" : "workstation-scale";
+  return { cores, memoryGiB, scale };
 }
 
 function isNumericMetric(value) {
@@ -691,6 +818,8 @@ function buildDashboardState(cwd) {
   const primaryMetric = choosePrimaryMetric(goal, runs);
   const preferHigher = String(goal.direction || "").toLowerCase().includes("high");
   const summary = summarizeDashboardRuns(runs, primaryMetric, preferHigher);
+  const traces = buildRunTraces(cwd, runs, primaryMetric, preferHigher);
+  const comparison = summarizeTraces(traces, preferHigher);
 
   return {
     cwd,
@@ -702,6 +831,8 @@ function buildDashboardState(cwd) {
     primaryMetric,
     preferHigher,
     summary,
+    traces,
+    comparison,
   };
 }
 
@@ -764,142 +895,6 @@ function loadRepoProfile(cwd) {
   return detectRepo(cwd);
 }
 
-function buildIdeaList(profile, goalText, history) {
-  const adapters = Array.isArray(profile?.adapters) ? profile.adapters : ["generic"];
-  const ideas = [];
-  const hasHistory = Boolean(history?.summary?.totalRuns);
-  const metric = history?.primaryMetric || goalText || "the target metric";
-
-  const add = (rank, title, hypothesis, change, killCriterion, whyNow) => {
-    ideas.push({ rank, title, hypothesis, change, killCriterion, whyNow });
-  };
-
-  if (hasHistory) {
-    const bestRun = history.summary.bestRun;
-    const worstRun = history.summary.worstRun;
-    const latestRun = history.summary.latestRun;
-    const recentIds = history.recentRuns.map((run) => run.id).filter(Boolean).join(", ");
-
-    add(
-      1,
-      "Reconstruct the last meaningful comparison",
-      `The repo already has experiment history for ${metric}, so the next step should come from what changed between the strongest and weakest runs.`,
-      `Compare the best run${bestRun ? ` (${bestRun.run.id} = ${bestRun.value})` : ""} against the latest or worst run${worstRun ? ` (${worstRun.run.id} = ${worstRun.value})` : ""}, then write the exact difference into the notes before changing code.`,
-      "If the difference cannot be explained from recorded evidence, do not widen the search.",
-      "This uses the repo's own history instead of guessing a new direction."
-    );
-    add(
-      2,
-      "Reproduce the strongest run once",
-      "A real win should survive another execution before it is treated as signal.",
-      `Re-run the current best setup${latestRun ? ` or the most recent interesting run (${latestRun.id})` : ""} with the same command and confirm the metric is stable.`,
-      "If the result disappears under reproduction, demote it.",
-      "This protects the repo from lucky outliers."
-    );
-    add(
-      3,
-      "Test one unexplored mechanism",
-      `The history says which families are already explored; the next research step should change one actual mechanism the repo still has not explained.`,
-      `Choose one mechanism-level change suggested by the repo surface${recentIds ? ` and the recent runs (${recentIds})` : ""} - data flow, evaluation logic, model component behavior, or loss computation - and test only that.`,
-      "If the idea is just a parameter cloud, rewrite it.",
-      "This is closer to real research than repeating another sweep."
-    );
-    add(
-      4,
-      "Only then consider a narrow sweep",
-      "A sweep is useful only when the history says the bottleneck is tuning rather than mechanism.",
-      "If the recorded experiments all point to optimization noise, run a narrow, justified sweep around the best recorded setup.",
-      "If the sweep is not justified by the history, skip it.",
-      "Sweeps are a follow-up, not the default."
-    );
-  } else {
-    add(
-      1,
-      "Find the baseline",
-      `Before optimizing ${metric}, identify the exact command that produces the current metric.`,
-      "Use inspect to find the training and evaluation commands, then run the smallest proof-of-life command.",
-      "If the baseline is unknown, do not guess at improvements yet.",
-      "The workflow starts with observability."
-    );
-    add(
-      2,
-      "Define the real research question",
-      "Make the repo's actual question explicit before changing code.",
-      `Use the repo shape and goal to identify one meaningful mechanism to test, such as data flow, evaluation logic, model behavior, or a single structural assumption.`,
-      "If the idea is just a blind sweep, stop and rewrite it.",
-      "This keeps the first experiment tied to the repo, not a generic tuning habit."
-    );
-    add(
-      3,
-      "Run one mechanism test",
-      "A real experiment changes one thing the repo can explain.",
-      "Pick one mechanism-level change, run it once, and record the result in the ledger and thread.",
-      "If the change cannot be explained in a sentence, it is probably too vague.",
-      "This is more useful than guessing at a cloud of hyperparameters."
-    );
-  }
-
-  return ideas;
-}
-
-function renderIdeasMarkdown(profile, goalText, history, ideas) {
-  const adapters = (profile?.adapters || ["generic"]).join(", ");
-  const lines = [
-    "# Research Ideas",
-    "",
-    `Goal: ${goalText || "Unknown"}`,
-    `Adapters: ${adapters}`,
-    "",
-    "## Experiment History",
-    "",
-  ];
-
-  if (!history || !history.summary || history.summary.totalRuns === 0) {
-    lines.push("No run history found yet in `.researchloop/scratchpad/runs.jsonl`.", "");
-  } else {
-    lines.push(`Runs: ${history.summary.totalRuns}`);
-    if (history.primaryMetric) {
-      lines.push(`Primary metric: ${history.primaryMetric}`);
-    }
-    if (history.summary.bestRun) {
-      lines.push(`Best: ${history.summary.bestRun.run.id} = ${history.summary.bestRun.value}`);
-    }
-    if (history.summary.worstRun) {
-      lines.push(`Worst: ${history.summary.worstRun.run.id} = ${history.summary.worstRun.value}`);
-    }
-    if (history.summary.latestRun) {
-      lines.push(`Latest: ${history.summary.latestRun.id}`);
-    }
-    if (history.recentRuns.length) {
-      lines.push("", "Recent runs:");
-      for (const run of history.recentRuns) {
-        const metricSummary = Object.entries(run.metrics || {})
-          .map(([key, value]) => `${key}=${value}`)
-          .join(", ");
-        lines.push(`- ${run.id}${metricSummary ? `: ${metricSummary}` : ""}`);
-      }
-    }
-    if (history.threadTail) {
-      lines.push("", "Recent thread notes:", "```text", history.threadTail, "```");
-    }
-    lines.push("");
-  }
-
-  for (const idea of ideas) {
-    lines.push(
-      `## ${idea.rank}. ${idea.title}`,
-      "",
-      `Hypothesis: ${idea.hypothesis}`,
-      `Change: ${idea.change}`,
-      `Kill criterion: ${idea.killCriterion}`,
-      `Why now: ${idea.whyNow}`,
-      ""
-    );
-  }
-
-  return lines.join("\n");
-}
-
 function readPaperNotes(cwd) {
   const papersDir = path.join(cwd, ".researchloop", "scratchpad", "papers");
   if (!fs.existsSync(papersDir)) {
@@ -921,24 +916,6 @@ function readPaperNotes(cwd) {
   return out;
 }
 
-function buildPaperIdeas(papers, goalText, startRank) {
-  const ideas = [];
-  let rank = startRank;
-  for (const paper of papers.slice(0, 5)) {
-    const shortTitle = paper.title.length > 60 ? `${paper.title.slice(0, 57)}...` : paper.title;
-    ideas.push({
-      rank,
-      title: `Read paper: ${shortTitle}`,
-      hypothesis: `arXiv ${paper.arxivId} may suggest a mechanism relevant to ${goalText || "the target metric"}.`,
-      change: `Read ${paper.file}, extract one concrete mechanism, and decide if it can be ported in one experiment.`,
-      killCriterion: "If the mechanism cannot be cleanly ported or has no reproducible result section, log the lesson and skip.",
-      whyNow: "Paper was fetched recently and is cheap to read before launching another sweep.",
-    });
-    rank += 1;
-  }
-  return ideas;
-}
-
 function cmdIdea() {
   const cwd = targetDir();
   const researchDir = path.join(cwd, ".researchloop");
@@ -946,20 +923,63 @@ function cmdIdea() {
   const goalText = option("--goal", "") || readGoalSummary(path.join(researchDir, "goal.md"));
   const profile = loadRepoProfile(cwd);
   const history = readExperimentHistory(cwd);
-  const ideas = buildIdeaList(profile, goalText, history);
+  const system = readSystemSummary();
   const papers = readPaperNotes(cwd);
-  if (papers.length) {
-    ideas.push(...buildPaperIdeas(papers, goalText, ideas.length + 1));
-  }
-  const markdown = renderIdeasMarkdown(profile, goalText, history, ideas);
-  process.stdout.write(`${markdown}\n`);
+  const timeBudget = normalizeTimeBudget(history.timeBudget || "");
+  const question = timeBudget
+    ? "Ask at most one short follow-up about the user's actual research priority, then propose ideas."
+    : 'Ask exactly one question first: "How long do you usually want a typical experiment to run?" Save the answer in `.researchloop/plan.md` under `Time Budget`, then continue.';
+  const recentRunLines = history.recentRuns.length
+    ? history.recentRuns.map((run) => {
+        const metricSummary = Object.entries(run.metrics || {})
+          .map(([key, value]) => `${key}=${value}`)
+          .join(", ");
+        return `- ${run.id}${metricSummary ? `: ${metricSummary}` : ""}`;
+      }).join("\n")
+    : "- none yet";
+  const paperLines = papers.length
+    ? papers.map((paper) => `- ${paper.arxivId}: ${paper.title}`).join("\n")
+    : "- none yet";
+  const prompt = [
+    "# Research Idea Chat",
+    "",
+    "You are preparing research ideas by talking with the user, not by using a fixed sweep template.",
+    "",
+    "First inspect the repo memory:",
+    "- `.researchloop/scratchpad/runs.jsonl`",
+    "- `.researchloop/scratchpad/THREAD.md`",
+    "- `.researchloop/plan.md`",
+    "- recent idea notes in `.researchloop/scratchpad/ideas/`",
+    "",
+    `Goal: ${goalText || "Unknown"}`,
+    `Adapters: ${(profile?.adapters || ["generic"]).join(", ")}`,
+    `System: ${system.cores} CPU / ${system.memoryGiB} GB RAM (${system.scale})`,
+    timeBudget ? `Saved time budget: ${timeBudget}` : "Saved time budget: missing",
+    "",
+    "Recent runs:",
+    recentRunLines,
+    "",
+    "Recent papers:",
+    paperLines,
+    "",
+    "What to do:",
+    `1. ${question}`,
+    "2. Keep the conversation short and concrete.",
+    "3. Use the repo history and the user's answer to propose 3-5 actual research ideas.",
+    "4. Give each idea a realistic time band and a kill criterion.",
+    "5. Do not default to generic learning-rate or hyperparameter sweeps unless the history justifies them.",
+    "6. If the repo has no useful history, say so and ask for the next real target repo or research dir.",
+    "",
+  ].join("\n");
+
+  process.stdout.write(`${prompt}\n`);
 
   if (hasFlag("--write")) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const file = path.join(researchDir, "scratchpad", "ideas", `${stamp}-ideas.md`);
+    const file = path.join(researchDir, "scratchpad", "ideas", `${stamp}-idea-chat.md`);
     ensureDir(path.dirname(file));
-    fs.writeFileSync(file, `${markdown}\n`);
-    console.log(`\nIdea note written to ${path.relative(cwd, file)}`);
+    fs.writeFileSync(file, `${prompt}\n`);
+    console.log(`\nIdea chat prompt written to ${path.relative(cwd, file)}`);
   }
 }
 
@@ -1263,6 +1283,7 @@ async function cmdRun(isBaseline) {
 
   const metrics = {};
   const metricValue = parseMetricFromOutput(result.output, metricName, regexSource);
+  const metricSeries = extractMetricSeriesFromText(result.output, metricName, regexSource);
   if (metricValue !== null) {
     metrics[metricName] = metricValue;
   }
@@ -1280,6 +1301,7 @@ async function cmdRun(isBaseline) {
     exit_code: result.exitCode,
     log: path.relative(cwd, logFile),
     metrics,
+    metric_history: metricSeries.length ? { [metricName]: metricSeries } : {},
     notes: "",
   };
   const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
@@ -1599,7 +1621,7 @@ Usage:
   researchloop goal [TEXT] [--dir PATH] [--metric NAME] [--direction lower|higher] [--baseline CMD] [--evaluation CMD] [--allowed TEXT] [--forbidden TEXT]
   researchloop inspect [--dir PATH]
   researchloop idea [--dir PATH] [--goal TEXT] [--write]
-  researchloop prompt [--goal TEXT] [--focus hyperparameters|architecture|attention] [--agent NAME]
+  researchloop prompt [--goal TEXT] [--focus hyperparameters|architecture|attention|training-ladder] [--agent NAME]
   researchloop doctor [--dir PATH] [--python PATH]
   researchloop record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]
   researchloop run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS]

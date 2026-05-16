@@ -22,8 +22,8 @@ test -f "$tmpdir/AGENTS.md"
 
 grep -q "Detected adapters: generic" /tmp/researchloop-init.log
 grep -q "lower validation loss" /tmp/researchloop-goal.log
-grep -q "Research Ideas" /tmp/researchloop-idea.log
-grep -q "Idea note written to" /tmp/researchloop-idea.log
+grep -q "Research Idea Chat" /tmp/researchloop-idea.log
+grep -q "Idea chat prompt written to" /tmp/researchloop-idea.log
 grep -q "lower validation loss" /tmp/researchloop-prompt.log
 grep -q "Recorded run: smoke-001" /tmp/researchloop-record.log
 grep -q "runs: 1" /tmp/researchloop-report.log

@@ -133,7 +133,7 @@ The startup plan is in `docs/startup/`.
 - `researchloop goal` saves a durable research objective in `.researchloop/goal.md`.
 - `researchloop inspect` writes `.researchloop/repo-profile.json`.
 - `researchloop scan-papers` fetches relevant arXiv abstracts into `.researchloop/scratchpad/papers/`.
-- `researchloop idea` generates ranked experiment ideas, including paper-derived ones, and can write an idea note.
+- `researchloop idea` opens a chat-first research prompt that reads the repo history, asks for the time budget if needed, and can write the prompt into an idea note.
 - `researchloop prompt` prints an agent-ready autonomous research prompt, with optional focus playbooks.
 - `researchloop team` generates a local multi-agent development board for the ResearchLoop repo or another project.
 - `researchloop baseline` runs the baseline command, parses the metric, and locks it into `goal.md` and `plan.md`.
@@ -148,7 +148,7 @@ The startup plan is in `docs/startup/`.
 - `npm run test:run` checks `run` and `baseline` against deterministic shell commands.
 - `npm run test:scan-papers` checks the arXiv scan path against a recorded XML fixture (no network).
 - `npm run test:goal` checks goal saving and prompt handoff.
-- `npm run test:idea` checks idea generation for a blank repo, an llm-research-kit-shaped repo, and a paper-augmented repo.
+- `npm run test:idea` checks the chat-first idea prompt for a blank repo, an llm-research-kit-shaped repo, and a paper-augmented repo.
 - `npm run test:team` checks the multi-agent development board and worker files.
 - `npm run test:dashboard` checks the local dashboard server and API.
 - `npm run test:prompts` checks prompt templates for placeholder drift.
