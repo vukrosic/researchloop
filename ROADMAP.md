@@ -21,7 +21,7 @@
 
 - Canonical `templates/prompts/first-contact.md` for first-run onboarding.
 - `researchloop prompt` includes first-contact rules automatically.
-- README copy-paste prompt now starts from `npm install -g researchloop`.
+- README copy-paste prompt now starts from `npm install -g autoresearch-ai`.
 - First-contact behavior is baseline-first: inspect and document the baseline before recommending experiments.
 - Prompt and packed-package tests cover the onboarding guardrails.
 

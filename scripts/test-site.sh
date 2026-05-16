@@ -12,7 +12,7 @@ fi
 site="$(cat "$site_file")"
 
 printf '%s' "$site" | grep -q 'Research Loop - Autonomous AI Research, in one prompt'
-printf '%s' "$site" | grep -q 'npm install -g researchloop'
+printf '%s' "$site" | grep -q 'npm install -g autoresearch-ai'
 printf '%s' "$site" | grep -q 'Automated AI research.'
 printf '%s' "$site" | grep -q 'Humans scope. Agents run.'
 printf '%s' "$site" | grep -q 'a pile of agents handle'

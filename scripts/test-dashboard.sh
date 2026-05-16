@@ -43,17 +43,17 @@ fi
 state="$(curl -s "$url/api/state")"
 page="$(curl -s "$url/")"
 
-printf '%s' "$page" | grep -q 'ResearchLoop Dashboard'
-printf '%s' "$page" | grep -q 'Loss comparison'
-printf '%s' "$page" | grep -q 'Experiments'
-printf '%s' "$state" | grep -q '"primaryMetric": "val_loss"'
-printf '%s' "$state" | grep -q '"traces"'
-printf '%s' "$state" | grep -q '"comparison"'
-printf '%s' "$state" | grep -q '"run-c"'
-printf '%s' "$state" | grep -q '"metric_history"'
-printf '%s' "$state" | grep -q '"val_loss": \['
-printf '%s' "$state" | grep -q '3.1'
-printf '%s' "$state" | grep -q '2.95'
-printf '%s' "$state" | grep -q '2.7'
+grep -q 'ResearchLoop Dashboard' <<<"$page"
+grep -q 'Loss comparison' <<<"$page"
+grep -q 'Experiments' <<<"$page"
+grep -q '"primaryMetric": "val_loss"' <<<"$state"
+grep -q '"traces"' <<<"$state"
+grep -q '"comparison"' <<<"$state"
+grep -q '"run-c"' <<<"$state"
+grep -q '"metric_history"' <<<"$state"
+grep -q '"val_loss": \[' <<<"$state"
+grep -q '3.1' <<<"$state"
+grep -q '2.95' <<<"$state"
+grep -q '2.7' <<<"$state"
 
 echo "researchloop test:dashboard passed"

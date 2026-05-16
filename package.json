@@ -1,5 +1,5 @@
 {
-  "name": "researchloop",
+  "name": "autoresearch-ai",
   "version": "0.3.1",
   "description": "Install an autonomous AI research harness for Codex, Claude Code, Hermes, and other coding agents.",
   "type": "module",
@@ -20,12 +20,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vukrosic/researchloop.git"
+    "url": "git+https://github.com/vukrosic/autoresearch-ai.git"
   },
   "bugs": {
-    "url": "https://github.com/vukrosic/researchloop/issues"
+    "url": "https://github.com/vukrosic/autoresearch-ai/issues"
   },
-  "homepage": "https://github.com/vukrosic/researchloop#readme",
+  "homepage": "https://github.com/vukrosic/autoresearch-ai#readme",
   "scripts": {
     "smoke": "node ./bin/researchloop.js --help",
     "smoke:e2e": "bash ./scripts/smoke-e2e.sh",

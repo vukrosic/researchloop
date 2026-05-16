@@ -83,7 +83,7 @@ Run this literal checklist for every release. Tick each box in the release PR de
 [ ] CI green on the release commit (Node 18 / 20 / 22 on ubuntu + macos)
 [ ] git tag vX.Y.Z, git push --follow-tags
 [ ] npm publish
-[ ] post-publish: install from npm in a fresh shell (npm install -g researchloop), run researchloop --version and researchloop --help
+[ ] post-publish: install from npm in a fresh shell (npm install -g autoresearch-ai), run researchloop --version and researchloop --help
 [ ] GitHub release draft published with the CHANGELOG entry
 ```
 

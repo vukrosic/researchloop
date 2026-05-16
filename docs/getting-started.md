@@ -1,6 +1,6 @@
 # ResearchLoop Getting Started
 
-ResearchLoop is an open source npm package that helps an AI agent run a disciplined research loop inside a machine learning repo.
+ResearchLoop is an open source npm package that helps an AI agent run a disciplined research loop inside a machine learning repo, published on npm as `autoresearch-ai`.
 
 The shortest way to think about it:
 
@@ -25,7 +25,7 @@ If `.researchloop/plan.md` does not already have a time budget, ask one question
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-Install the `researchloop` npm package if needed. Act as an automated AI researcher and follow the ResearchLoop first-contact prompt.
+Install the `autoresearch-ai` npm package if needed. Act as an automated AI researcher and follow the ResearchLoop first-contact prompt.
 Read the ResearchLoop docs and the `.researchloop/` files, then help me start AI research: inspect the local system for GPUs/accelerators, inspect the workspace for likely AI research repos, explain what I have in plain language, and check whether a baseline exists and where it is documented.
 Do not summarize package internals, tarball contents, prompt files, or skill files unless I explicitly ask.
 Do not run init, training, baselines, sweeps, or experiments until I approve the plan.
@@ -37,8 +37,10 @@ Use the package commands to manage goals, ideas, prompts, runs, comparisons, and
 From your own machine:
 
 ```bash
-npm install -g researchloop
+npm install -g autoresearch-ai
 ```
+
+The package name is `autoresearch-ai`; the CLI command remains `researchloop`.
 
 For local development from this repo:
 
@@ -51,7 +53,7 @@ researchloop --help
 If you want to hand this to an AI agent, the simplest instruction is:
 
 ```text
-Install ResearchLoop, follow `templates/prompts/first-contact.md`, inspect the system and project read-only, explain what I have in plain language, check the baseline state first, then propose a plan. Wait for my approval before any init, training, baseline, sweep, or experiment command.
+Install AutoResearch-AI, follow `templates/prompts/first-contact.md`, inspect the system and project read-only, explain what I have in plain language, check the baseline state first, then propose a plan. Wait for my approval before any init, training, baseline, sweep, or experiment command.
 ```
 
 ## 3. Initialize a repo
@@ -296,7 +298,7 @@ npm pack --dry-run
 
 Make sure the package name is available and the contents look right.
 
-For this repo, the package name is currently `researchloop` in `package.json`. If that name is available in your npm account, publish with:
+For this repo, the package name is `autoresearch-ai` in `package.json`. Publish with:
 
 ```bash
 npm publish
@@ -329,13 +331,13 @@ Typical release checklist:
 Users install it from the npm registry with:
 
 ```bash
-npm install -g researchloop
+npm install -g autoresearch-ai
 ```
 
 If they prefer local use inside one repo:
 
 ```bash
-npm install researchloop
+npm install autoresearch-ai
 ```
 
 Then they run the CLI from that environment.

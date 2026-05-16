@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-(no changes yet)
+New:
+
+- Renamed the npm package from `researchloop` to `autoresearch-ai`.
+
+Improved:
+
+- README, getting-started, site copy, and onboarding prompts now point to `npm install -g autoresearch-ai`.
 
 ## 0.3.1
 

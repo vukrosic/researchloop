@@ -10,7 +10,7 @@ It gives agents goals, prompts, ideas, logs, compare, and report so they can run
 
 Local-first. Open source. MacBook-tested.
 
-Repo: https://github.com/vukrosic/researchloop
+Repo: https://github.com/vukrosic/autoresearch-ai
 
 Draft 2:
 
@@ -29,4 +29,3 @@ Humans scope. Agents run.
 It keeps the research loop local, reproducible, and inspectable with goals, ideas, logs, compare, dashboard, and reports.
 
 I want this to be the simple tool PhD students and labs can actually use.
-

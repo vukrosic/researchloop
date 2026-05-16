@@ -2,7 +2,7 @@
   <img src="./assets/researchloop-banner.webp" alt="ResearchLoop banner" width="100%" />
 </p>
 
-ResearchLoop is an open source npm package for autonomous AI research workflows.
+ResearchLoop is an open source npm package for autonomous AI research workflows, published on npm as `autoresearch-ai`.
 
 If you want the full step-by-step usage and publish guide, read [docs/getting-started.md](./docs/getting-started.md).
 
@@ -13,7 +13,7 @@ It installs a durable research harness into a machine learning repo so agents li
 Copy this into Codex, Claude Code, Hermes, Cursor, or another coding agent:
 
 ```text
-npm install -g researchloop. Act as an automated AI researcher. This package contains the tools and prompts. Follow `templates/prompts/first-contact.md`: only talk to me first, explain my system/GPU/repo in simple language, check whether a baseline exists and where it is documented, and wait for approval before init, training, baselines, sweeps, or experiments.
+npm install -g autoresearch-ai. Act as an automated AI researcher. This package contains the tools and prompts. Follow `templates/prompts/first-contact.md`: only talk to me first, explain my system/GPU/repo in simple language, check whether a baseline exists and where it is documented, and wait for approval before init, training, baselines, sweeps, or experiments.
 ```
 
 ---
@@ -21,13 +21,15 @@ npm install -g researchloop. Act as an automated AI researcher. This package con
 Manual Installation:
 
 ```bash
-npm install -g researchloop
+npm install -g autoresearch-ai
 ```
+
+The package name is `autoresearch-ai`; the CLI command you run after install is still `researchloop`.
 
 Local development from this checkout:
 
 ```bash
-git clone https://github.com/vukrosic/researchloop.git
+git clone https://github.com/vukrosic/autoresearch-ai.git
 cd researchloop
 npm link
 researchloop --help
