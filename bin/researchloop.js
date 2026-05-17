@@ -1193,6 +1193,68 @@ function getDirSize(dir) {
   return size;
 }
 
+function parseDataGlobs(raw) {
+  const match = raw.match(/^data_globs:\s*([\s\S]*?)(?=^\w|\n#|$)/mi);
+  if (!match) return null;
+  const items = [];
+  for (const line of match[1].split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const bulletMatch = trimmed.match(/^-\s*["']?([^"'\n]+)["']?\s*$/);
+    if (bulletMatch) items.push(bulletMatch[1].trim());
+  }
+  return items.length ? items : null;
+}
+
+function computeDataFingerprint(cwd, dataGlobs) {
+  if (!dataGlobs || !dataGlobs.length) return null;
+  const files = [];
+  for (const glob of dataGlobs) {
+    const pattern = glob.startsWith("/") ? glob : path.join(cwd, glob);
+    const dir = path.dirname(pattern);
+    const base = path.basename(pattern);
+    if (base.includes("*")) {
+      try {
+        const findOutput = execSync("find \"" + dir + "\" -maxdepth 1 -name \"" + base + "\" -type f 2>/dev/null || true", { cwd, encoding: "utf8", timeout: 5000 });
+        for (const f of findOutput.split("\n").filter(Boolean)) {
+          files.push(f);
+        }
+      } catch { /* no match */ }
+    } else {
+      if (fs.existsSync(pattern) && fs.statSync(pattern).isFile()) {
+        files.push(pattern);
+      }
+    }
+  }
+  if (!files.length) return null;
+  files.sort((a, b) => a.localeCompare(b));
+  const hash = createHash("sha256");
+  for (const file of files) {
+    try {
+      const stat = fs.statSync(file);
+      hash.update(file);
+      hash.update(String(stat.size));
+      hash.update(String(stat.mtimeMs));
+    } catch { /* skip */ }
+  }
+  return hash.digest("hex");
+}
+
+function cmdDataFingerprint() {
+  const cwd = targetDir();
+  const goalFile = path.join(cwd, ".researchloop", "goal.md");
+  if (!fs.existsSync(goalFile)) {
+    console.error("No goal.md found. Run `autoresearch goal` first.");
+    process.exitCode = 1;
+    return;
+  }
+  const raw = fs.readFileSync(goalFile, "utf8");
+  const globs = parseDataGlobs(raw);
+  const fp = computeDataFingerprint(cwd, globs);
+  if (fp) console.log(fp);
+  else console.log("No data_globs configured or no files matched.");
+}
+
 function readTextIfExists(file) {
   return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
 }
@@ -1831,6 +1893,14 @@ function cmdCompare() {
     return;
   }
 
+  if (scored.length >= 2) {
+    const fp0 = scored[0].row.data_fingerprint;
+    const fp1 = scored[1].row.data_fingerprint;
+    if (fp0 && fp1 && fp0 !== fp1) {
+      console.error("WARNING: compared runs have different data fingerprints — data may have changed between runs");
+    }
+  }
+
   scored.sort((a, b) => (preferHigher ? b.value - a.value : a.value - b.value));
   const best = scored[0];
   const worst = scored[scored.length - 1];
@@ -2156,6 +2226,7 @@ async function cmdRun(isBaseline) {
   ensureDir(runDir);
   const logFile = path.join(runDir, "log.txt");
   const env = captureEnv(cwd);
+  const dataFingerprint = computeDataFingerprint(cwd, goalFields.data_globs);
   const effectiveTimeoutMs = allowUnsafe || !Number.isFinite(safetyCheck.maxMs)
     ? timeoutMs
     : Math.min(timeoutMs, safetyCheck.maxMs);
@@ -2236,6 +2307,7 @@ async function cmdRun(isBaseline) {
     metric_history: metricSeries.length ? { [metricName]: metricSeries } : {},
     notes: "",
     env,
+    data_fingerprint: dataFingerprint,
   };
   appendRunRow(cwd, row);
   writeArtifactMetricsJsonl(runDir, metricName, metricSeries);
@@ -2808,6 +2880,7 @@ Usage:
   autoresearch failures [--top N] [--format json] [--dir PATH]
   autoresearch diff-runs --id-a <id> --id-b <id> [--format text|json|markdown] [--dir PATH]
   autoresearch prune [--older-than Nd] [--status STATUS] [--dry-run] [--no-keep-promoted] [--dir PATH]
+  autoresearch data-fingerprint [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -2863,6 +2936,8 @@ async function main() {
     cmdDiffRuns();
   } else if (command === "prune") {
     cmdPrune();
+  } else if (command === "data-fingerprint") {
+    cmdDataFingerprint();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
