@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # GitHub Actions versions (used by .github/workflows/*.yml).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
+
+  # npm dependencies. The CLI itself is zero runtime-dep on purpose,
+  # so most updates here will be devDependencies / engines bumps.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: deps
+      include: scope
+    # Group all minor + patch updates into a single PR per week to reduce noise.
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch

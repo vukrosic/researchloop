@@ -1,8 +1,19 @@
 <p align="center">
-  <img src="./assets/researchloop-banner.webp" alt="AutoResearch-AI banner" width="100%" />
+  <img src="./assets/autoresearch-banner.webp" alt="AutoResearch-AI banner" width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/vukrosic/autoresearch-ai/actions/workflows/ci.yml"><img src="https://github.com/vukrosic/autoresearch-ai/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://www.npmjs.com/package/autoresearch-ai"><img src="https://img.shields.io/npm/v/autoresearch-ai.svg" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/autoresearch-ai"><img src="https://img.shields.io/npm/dm/autoresearch-ai.svg" alt="npm downloads" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/autoresearch-ai.svg" alt="MIT License" /></a>
+  <img src="https://img.shields.io/node/v/autoresearch-ai.svg" alt="Node version" />
+  <img src="https://img.shields.io/badge/status-alpha-orange.svg" alt="Status: alpha" />
 </p>
 
 AutoResearch-AI is an open source npm package for autonomous AI research workflows, published on npm as `autoresearch-ai`.
+
+> **Status: alpha (pre-1.0).** The CLI surface is stabilizing but breaking changes are still possible between minor versions. Pin a specific version in production use and watch [CHANGELOG.md](./CHANGELOG.md) before upgrading.
 
 If you want the full step-by-step usage and publish guide, read [docs/getting-started.md](./docs/getting-started.md).
 
@@ -194,7 +205,11 @@ Every shippable unit of work is a numbered goal in [GOALS.md](./GOALS.md) — si
 
 PRs written wholly or partly by AI coding agents are welcome — name the agent in the PR description so reviewers know what kind of review the change needs.
 
-See also: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md).
+See also: [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md), [GOVERNANCE.md](./GOVERNANCE.md), [SUPPORT.md](./SUPPORT.md), [RELEASING.md](./RELEASING.md).
+
+## Citing
+
+If you use AutoResearch-AI in a paper, ablation study, or experiment writeup, please cite it via [CITATION.cff](./CITATION.cff) (GitHub renders a "Cite this repository" button in the sidebar).
 
 ## Parallel Agent Tooling
 

@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+title: "AutoResearch-AI: An open source research harness for autonomous AI coding agents"
+message: "If you use AutoResearch-AI in a paper, ablation study, or experiment writeup, please cite it as below."
+type: software
+authors:
+  - family-names: "Rosic"
+    given-names: "Vuk"
+    email: shifter040@gmail.com
+repository-code: "https://github.com/vukrosic/autoresearch-ai"
+url: "https://github.com/vukrosic/autoresearch-ai"
+license: MIT
+keywords:
+  - autonomous-research
+  - ai-agents
+  - machine-learning
+  - reproducibility
+  - experiment-tracking
+  - llm-research
+  - claude-code
+  - codex
+preferred-citation:
+  type: software
+  title: "AutoResearch-AI: An open source research harness for autonomous AI coding agents"
+  authors:
+    - family-names: "Rosic"
+      given-names: "Vuk"
+  url: "https://github.com/vukrosic/autoresearch-ai"
+  year: 2026

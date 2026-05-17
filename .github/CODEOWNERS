@@ -1,0 +1,21 @@
+# CODEOWNERS — auto-assigns reviewers on every PR.
+# See: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo.
+* @vukrosic
+
+# Release-critical files: any change should be reviewed by the maintainer even if
+# co-maintainers exist in the future.
+/package.json     @vukrosic
+/CHANGELOG.md     @vukrosic
+/bin/             @vukrosic
+
+# Repo-meta files. Same default applies; listed explicitly to make ownership obvious.
+/README.md        @vukrosic
+/GOALS.md         @vukrosic
+/ROADMAP.md       @vukrosic
+/AGENTS.md        @vukrosic
+/CITATION.cff     @vukrosic
+/LICENSE          @vukrosic
+/SECURITY.md      @vukrosic
+/GOVERNANCE.md    @vukrosic
