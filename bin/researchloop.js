@@ -2295,6 +2295,81 @@ function cmdTeam() {
   console.log("Next: create branches or worktrees, then hand each lane to a separate agent.");
 }
 
+function loadFailurePatterns(cwd) {
+  const patternFile = path.join(cwd, ".researchloop", "failure-patterns.yaml");
+  if (!fs.existsSync(patternFile)) return [];
+  try {
+    const raw = fs.readFileSync(patternFile, "utf8");
+    const patterns = [];
+    for (const line of raw.split("\n")) {
+      const km = line.match(/^\s+-\s+key:\s*["']?([^"'\n]+)["']?\s*$/);
+      const sm = line.match(/^\s+suggestion:\s*(.+)\s*$/);
+      if (km) patterns.push({ key: km[1], suggestion: "" });
+      else if (sm && patterns.length) patterns[patterns.length-1].suggestion = sm[1];
+    }
+    return patterns;
+  } catch { return []; }
+}
+
+function cmdFailures() {
+  const cwd = targetDir();
+  const topN = Math.max(1, Math.min(100, Number(option("--top", 10)) || 10));
+  const asJson = hasFlag("--format") && option("--format") === "json";
+  const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+  const patterns = loadFailurePatterns(cwd);
+
+  if (!fs.existsSync(ledger)) {
+    process.stdout.write(asJson ? "[]\n" : "No runs recorded.\n");
+    return;
+  }
+
+  const rows = [];
+  for (const line of fs.readFileSync(ledger, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try { rows.push(JSON.parse(line)); } catch { /* skip */ }
+  }
+
+  const failed = rows.filter((r) => r.status === "failed" || r.status === "killed_by_rule" || r.status === "killed_by_safety");
+  if (!failed.length) {
+    process.stdout.write(asJson ? "[]\n" : "No failed runs found.\n");
+    return;
+  }
+
+  const clusters = {};
+  for (const run of failed) {
+    const kr = run.kill_reason || "";
+    const lower = kr.toLowerCase();
+    let clusterKey = kr || "unknown";
+    for (const p of patterns) {
+      if (lower.includes(p.key.toLowerCase())) { clusterKey = p.key; break; }
+    }
+    if (!clusters[clusterKey]) {
+      const pat = patterns.find((p) => p.key.toLowerCase() === clusterKey.toLowerCase());
+      clusters[clusterKey] = { key: clusterKey, count: 0, runIds: [], suggestion: pat ? pat.suggestion : "Inspect stderr for the actual error." };
+    }
+    clusters[clusterKey].count++;
+    clusters[clusterKey].runIds.push(run.id);
+  }
+
+  const sorted = Object.values(clusters).sort((a, b) => b.count - a.count);
+  const top = sorted.slice(0, topN);
+
+  if (asJson) {
+    process.stdout.write(JSON.stringify({ clusters: top, total: failed.length }, null, 2) + "\n");
+  } else {
+    console.log("=== Failure Clusters ===");
+    console.log("Total failures: " + failed.length);
+    console.log("Clusters: " + sorted.length);
+    console.log("");
+    for (const c of top) {
+      console.log("## " + c.key + " (" + c.count + " runs)");
+      console.log("  Suggestion: " + c.suggestion);
+      console.log("  Examples: " + c.runIds.slice(0, 3).join(", "));
+      console.log("");
+    }
+  }
+}
+
 function cmdHelp() {
   console.log(`AutoResearch-AI ${packageVersion()}
 
@@ -2314,6 +2389,7 @@ Usage:
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
   autoresearch dashboard [--dir PATH] [--host HOST] [--port PORT]
   autoresearch report [--dir PATH]
+  autoresearch failures [--top N] [--format json] [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -2361,6 +2437,8 @@ async function main() {
     cmdDashboard();
   } else if (command === "report") {
     cmdReport();
+  } else if (command === "failures") {
+    cmdFailures();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
