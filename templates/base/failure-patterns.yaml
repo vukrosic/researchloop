@@ -1,0 +1,40 @@
+# Failure pattern library for autoresearch failures command.
+# Each entry maps a key (kill_reason substring or special tag) to a suggested fix.
+# The failures command looks up clusters against these patterns.
+
+patterns:
+  - key: oom
+    label: Out of memory
+    suggestion: Halve batch_size or reduce model size. OOM errors indicate insufficient GPU memory for the current configuration.
+
+  - key: out of memory
+    label: Out of memory
+    suggestion: Halve batch_size or reduce model size. OOM errors indicate insufficient GPU memory for the current configuration.
+
+  - key: timeout
+    label: Timeout
+    suggestion: Increase --timeout or check whether the command is hanging. A timeout may indicate an infinite loop or deadlock.
+
+  - key: killed_by_safety
+    label: Killed by safety policy
+    suggestion: Review your safety policy in templates/base/safety.yaml. The command may be hitting a deny_substring or exceeding max_minutes_per_run.
+
+  - key: killed_by_rule
+    label: Killed by rule
+    suggestion: Inspect the run's stderr to understand which safety rule triggered termination. Check your safety policy configuration.
+
+  - key: cuda out
+    label: CUDA out of memory
+    suggestion: Halve batch_size, enable gradient checkpointing, or reduce model precision (float16/bfloat16).
+
+  - key: exit code 1
+    label: Non-zero exit
+    suggestion: Check stderr for the error. Exit code 1 usually means the process exited with a generic error.
+
+  - key: exit code 127
+    label: Command not found
+    suggestion: The executable was not found in PATH. Verify the command exists and the environment is set up correctly.
+
+  - key: generic
+    label: Unknown error
+    suggestion: Inspect stderr for the actual error message. Consider adding a new pattern to templates/base/failure-patterns.yaml if this error recurs.
