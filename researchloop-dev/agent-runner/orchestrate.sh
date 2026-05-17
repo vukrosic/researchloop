@@ -40,6 +40,22 @@ mkdir -p "$STATE_DIR" "$WORKTREES_PARENT"
 log() { echo "[orchestrate $(date +%H:%M:%S)] $*" >&2; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# Portable timeout wrapper: uses `timeout`, then `gtimeout`, else falls through
+# without a hard cap. macOS doesn't ship `timeout` by default; this lets the
+# orchestrator run without requiring coreutils.
+run_timeout() {
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$secs" "$@"
+  else
+    # No timeout available — spawn the command and rely on user Ctrl-C if it hangs.
+    log "WARNING: no timeout binary on this system; agent will run without a hard cap (Ctrl-C to abort)"
+    "$@"
+  fi
+}
+
 # Retry a gh command up to 5 times with backoff. Use for read-only calls.
 gh_retry() {
   local out
@@ -131,7 +147,7 @@ PYEOF
   cd "$worktree"
   case "$IMPLEMENTER" in
     codex)
-      timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
+      run_timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
         --cd "$worktree" \
         $codex_perm \
         --output-last-message "$STATE_DIR/implementer-$issue_num.final.txt" \
@@ -139,7 +155,7 @@ PYEOF
         2>&1 | tee "$STATE_DIR/implementer-$issue_num.log"
       ;;
     claude)
-      timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p \
+      run_timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p \
         "$(cat "$prompt_file")" \
         --add-dir "$worktree" \
         $claude_perm \
@@ -182,13 +198,13 @@ PYEOF
   # No write permission needed; default sandbox is enough.
   case "$REVIEWER" in
     claude)
-      timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p \
+      run_timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p \
         "$(cat "$prompt_file")" \
         --permission-mode default \
         > "$review_out"
       ;;
     codex)
-      timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
+      run_timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
         --sandbox read-only \
         --skip-git-repo-check \
         "$(cat "$prompt_file")" \
