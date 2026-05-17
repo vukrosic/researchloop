@@ -4,6 +4,9 @@ Status: not documented yet
 
 Use this file to pin down the current baseline before proposing architecture, optimizer, sweep, or training changes.
 
+<!-- baseline-status schema: fill in Metric, Known limitations, and at least one Frozen Surfaces value. -->
+<!-- baseline-status schema: fill in either Command or config, Baseline artifact, or both. Empty or placeholder values count as missing. -->
+
 ## What To Record
 
 - Baseline artifact:

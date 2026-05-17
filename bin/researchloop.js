@@ -896,6 +896,140 @@ function parseMarkdownSection(text, heading) {
   return match ? match[1].trim() : "";
 }
 
+function meaningfulBaselineValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const lowered = text.toLowerCase();
+  if (
+    lowered === "unknown" ||
+    lowered === "tbd" ||
+    lowered === "todo" ||
+    lowered === "not documented" ||
+    lowered === "not documented yet"
+  ) {
+    return "";
+  }
+  return text;
+}
+
+function markdownBulletValue(text, label) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`^[ \\t]*[-*][ \\t]+${escaped}[ \\t]*:[ \\t]*(.*)$`, "im"));
+  return meaningfulBaselineValue(match ? match[1] : "");
+}
+
+function parseBaselineFile(raw) {
+  const frozenSection = parseMarkdownSection(raw, "Frozen Surfaces");
+  const frozenLabels = [
+    "Dataset",
+    "Token budget or eval budget",
+    "Model size",
+    "Seed",
+    "Optimizer",
+    "Architecture",
+  ];
+  const frozenVariables = frozenLabels
+    .map((label) => ({ label, value: markdownBulletValue(frozenSection, label) }))
+    .filter((entry) => entry.value);
+
+  const fields = {
+    artifact: markdownBulletValue(raw, "Baseline artifact"),
+    metric: markdownBulletValue(raw, "Metric"),
+    direction: markdownBulletValue(raw, "Direction"),
+    commandOrConfig: markdownBulletValue(raw, "Command or config"),
+    budget: markdownBulletValue(raw, "Model/data/training budget"),
+    system: markdownBulletValue(raw, "System or accelerator"),
+    caveats: markdownBulletValue(raw, "Known limitations"),
+    frozenVariables,
+  };
+
+  const missing = [];
+  if (!fields.commandOrConfig && !fields.artifact) missing.push("command/config/artifact");
+  if (!fields.metric) missing.push("metric");
+  if (!fields.frozenVariables.length) missing.push("frozen variables");
+  if (!fields.caveats) missing.push("caveats");
+
+  return {
+    present: true,
+    complete: missing.length === 0,
+    missing,
+    fields,
+    summary: baselineSummary(fields),
+  };
+}
+
+function baselineSummary(fields) {
+  const parts = [];
+  if (fields.metric) {
+    parts.push(`metric ${fields.metric}${fields.direction ? ` (${fields.direction})` : ""}`);
+  }
+  if (fields.commandOrConfig) {
+    parts.push(`command/config ${fields.commandOrConfig}`);
+  }
+  if (fields.artifact) {
+    parts.push(`artifact ${fields.artifact}`);
+  }
+  if (fields.budget) {
+    parts.push(`budget ${fields.budget}`);
+  }
+  if (fields.system) {
+    parts.push(`system ${fields.system}`);
+  }
+  if (fields.frozenVariables.length) {
+    const frozen = fields.frozenVariables
+      .map((entry) => `${entry.label}=${entry.value}`)
+      .join(", ");
+    parts.push(`frozen variables ${frozen}`);
+  }
+  if (fields.caveats) {
+    parts.push(`caveats ${fields.caveats}`);
+  }
+  return parts.length ? `baseline complete: ${parts.join("; ")}.` : "";
+}
+
+function cmdBaselineStatus() {
+  const cwd = targetDir();
+  const format = String(option("--format", "text")).toLowerCase();
+  if (format !== "text" && format !== "json") {
+    console.error("baseline-status: --format must be text or json");
+    process.exitCode = 1;
+    return;
+  }
+
+  const baselineFile = path.join(cwd, ".researchloop", "baseline.md");
+  if (!fs.existsSync(baselineFile)) {
+    const result = {
+      present: false,
+      complete: false,
+      missing: ["baseline"],
+      path: path.relative(cwd, baselineFile),
+      summary: "missing baseline",
+    };
+    if (format === "json") {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.error("missing baseline: .researchloop/baseline.md not found");
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const result = {
+    path: path.relative(cwd, baselineFile),
+    ...parseBaselineFile(readTextIfExists(baselineFile)),
+  };
+  if (format === "json") {
+    console.log(JSON.stringify(result, null, 2));
+  } else if (result.complete) {
+    console.log(result.summary);
+  } else {
+    console.error(`partial baseline: missing ${result.missing.join(", ")}`);
+  }
+  if (!result.complete) {
+    process.exitCode = 1;
+  }
+}
+
 function parseGoalFile(goalFile) {
   const raw = readTextIfExists(goalFile);
   return {
@@ -2309,6 +2443,7 @@ Usage:
   autoresearch record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]    (manual escape hatch; prefer 'run')
   autoresearch run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
   autoresearch baseline [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
+  autoresearch baseline-status [--dir PATH] [--format text|json]
   autoresearch scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
@@ -2351,6 +2486,8 @@ async function main() {
     await cmdRun(false);
   } else if (command === "baseline") {
     await cmdRun(true);
+  } else if (command === "baseline-status") {
+    cmdBaselineStatus();
   } else if (command === "scan-papers") {
     await cmdScanPapers();
   } else if (command === "compare") {
