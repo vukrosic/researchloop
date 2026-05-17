@@ -8,7 +8,7 @@ You are an autonomous coding agent implementing **one** GitHub issue against the
 2. `CONTRIBUTING.md` — the first-PR-wins claim flow and PR checklist
 3. `GOALS.md` — find the G## entry if the issue references one
 4. `bin/researchloop.js` — the entire CLI lives in one file; read the patterns used by neighboring commands (`cmdCompare`, `cmdLeaderboard`, `cmdReport`) before adding yours
-5. The issue body (passed in as `$ISSUE_BODY` below) — Researcher line, Demo line, Composes with, Acceptance, Anti-features, Files
+5. The issue body in the "Issue body" section at the bottom of this prompt — Researcher line, Demo line, Composes with, Acceptance, Anti-features, Files
 
 ## Hard rules
 

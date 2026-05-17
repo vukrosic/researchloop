@@ -40,6 +40,20 @@ mkdir -p "$STATE_DIR" "$WORKTREES_PARENT"
 log() { echo "[orchestrate $(date +%H:%M:%S)] $*" >&2; }
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+# Retry a gh command up to 5 times with backoff. Use for read-only calls.
+gh_retry() {
+  local out
+  for try in 1 2 3 4 5; do
+    if out=$(gh "$@" 2>&1); then
+      echo "$out"
+      return 0
+    fi
+    [ "$try" -lt 5 ] && sleep $((try * 2))
+  done
+  echo "$out" >&2
+  return 1
+}
+
 ensure_clean() {
   cd "$REPO_ROOT"
   if ! git diff --quiet --ignore-submodules HEAD 2>/dev/null; then
@@ -64,7 +78,8 @@ pick_issue() {
 slug_for_issue() {
   local n="$1"
   local title
-  title=$(gh issue view "$n" --json title --jq '.title')
+  title=$(gh_retry issue view "$n" --json title --jq '.title')
+  [ -n "$title" ] || die "could not fetch title for issue #$n"
   # Extract the verb after `[agent]` or after `G##`, lowercase, hyphenate.
   echo "$title" \
     | sed -E 's/^\[(agent|goal)\][^a-zA-Z0-9]*//' \
