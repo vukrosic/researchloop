@@ -3076,6 +3076,78 @@ function cmdTag() {
   }
 }
 
+function cmdLeaderboard() {
+  const metric = option("--metric", "value");
+  const direction = option("--direction", "higher");
+  const top = parseInt(option("--top", "10"), 10);
+  const doWrite = hasFlag("--write");
+  const cwd = targetDir();
+  const ledgerPath = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+  const lbPath = path.join(cwd, ".researchloop", "LEADERBOARD.md");
+
+  let runs = [];
+  try {
+    const raw = fs.readFileSync(ledgerPath, "utf8");
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        runs.push(JSON.parse(trimmed));
+      } catch { /* skip */ }
+    }
+  } catch {
+    runs = [];
+  }
+
+  // Filter to completed runs with the target metric
+  const filtered = runs.filter((r) => {
+    if (r.status === "completed" || r.status === "promoted") {
+      const val = r.metrics?.[metric] ?? r.value;
+      return val != null && typeof val === "number" && Number.isFinite(val);
+    }
+    return false;
+  });
+
+  // Sort
+  const dirFactor = direction === "lower" ? 1 : -1;
+  filtered.sort((a, b) => {
+    const aVal = a.metrics?.[metric] ?? a.value;
+    const bVal = b.metrics?.[metric] ?? b.value;
+    return (aVal - bVal) * dirFactor;
+  });
+
+  const topRuns = filtered.slice(0, top);
+
+  // Render markdown
+  const lines = [
+    "# Leaderboard",
+    "",
+    `**Metric:** \`${metric}\` | **Direction:** ${direction} | **Generated:** ${new Date().toISOString()}`,
+    "",
+    "| Rank | Run ID | " + metric + " | Status | Date |",
+    "| ---: | --- | ---: | --- | --- |",
+  ];
+
+  topRuns.forEach((run, i) => {
+    const val = run.metrics?.[metric] ?? run.value;
+    const valStr = val != null ? val.toFixed(4) : "—";
+    const runId = run.id ? run.id.substring(0, 8) : "?";
+    const status = run.status || "?";
+    const date = run.timestamp ? run.timestamp.substring(0, 10) : "?";
+    const params = run.params ? JSON.stringify(run.params).substring(0, 40) : "";
+    lines.push("| " + (i + 1) + " | " + runId + " | " + valStr + " | " + status + " | " + date + " |");
+  });
+
+  const md = lines.join("\n");
+
+  if (doWrite) {
+    fs.writeFileSync(lbPath, md + "\n");
+    console.log("Leaderboard written to .researchloop/LEADERBOARD.md");
+  } else {
+    console.log(md);
+  }
+}
+
 function cmdHelp() {
   console.log(`AutoResearch-AI ${packageVersion()}
 
@@ -3102,6 +3174,7 @@ Usage:
   autoresearch data-fingerprint [--dir PATH]
   autoresearch model-card --id <run-id> [--out FILE.md] [--dir PATH]
   autoresearch tag --id <run-id> [--add TAG] [--remove TAG] [--list] [--dir PATH]
+  autoresearch leaderboard [--metric METRIC] [--direction higher|lower] [--top N] [--write] [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -3163,6 +3236,8 @@ async function main() {
     cmdTag();
   } else if (command === "data-fingerprint") {
     cmdDataFingerprint();
+  } else if (command === "leaderboard") {
+    cmdLeaderboard();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
