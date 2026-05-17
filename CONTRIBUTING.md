@@ -38,33 +38,34 @@ To unlink when you're done:
 npm unlink -g autoresearch-ai
 ```
 
-## The claim flow (how to pick work)
+## The claim flow (first-PR-wins)
 
-AutoResearch-AI uses a numbered-goal slot system to coordinate humans and AI agents working in parallel without stepping on each other.
+AutoResearch-AI uses a **first-PR-wins** slot system. No maintainer permission needed to start. Whoever ships first wins.
 
-1. **Browse [GOALS.md](GOALS.md).** Pick a `G##` goal where:
-   - no open issue or PR already references it
-   - every goal in its `Depends on` line is already merged
-   - the `Files owned` line doesn't conflict with work already in flight
-   - the effort tag (S / M / L) matches what you can commit to
+1. **Browse [GOALS.md](GOALS.md) or the [open issues](https://github.com/vukrosic/autoresearch-ai/issues).** Pick a `G##` goal where:
+   - every goal in its `Depends on` line is already merged into `main` (check `git log`, not just the issue tracker)
+   - the effort tag (S / M / L) matches what you can commit to in one sitting
 
-2. **Claim it.** Open a [Contribute-a-Goal issue](.github/ISSUE_TEMPLATE/contribute-goal.yml) with:
-   - the `G##` ID in the title
-   - a one-paragraph approach
-   - which agent (if any) is writing the code (Codex / Claude / Cursor / Hermes / human)
-   - confirmation you've read [AGENTS.md](AGENTS.md) and this file
+2. **Branch from `main`.** Branch naming: `g##-short-description` (e.g., `g14-env-capture`). One `G##` per branch.
 
-3. **Wait for the claim to be acknowledged** (typically same-week). The maintainer will label it `claimed` and assign it to you. This prevents two contributors racing the same goal.
+3. **Open a draft PR immediately** — within the first hour of starting work — titled `[goal] G## — your-short-description` against `main`. Use the [PR template](.github/PULL_REQUEST_TEMPLATE.md) and fill in:
+   - the linked issue (if one exists) or the `G##` from GOALS.md
+   - **every Acceptance line from the `G##` goal, copy-pasted into the checklist** — this is the mechanical check reviewers use
+   - "Agent attribution" — which agent (if any) wrote the code (Codex / Claude / Cursor / Hermes / human)
 
-4. **Branch from `main`.** Branch naming convention: `g##-short-description` (e.g., `g14-env-capture`).
+   The draft PR is your claim. Other contributors will see it and pick something else. If you abandon (no commits for 7 days), anyone may take over.
 
-5. **Implement.** Keep the change focused — one `G##` per PR. Architecture changes need an issue first.
+4. **Implement.** Keep the change focused — one `G##` per PR. Architecture changes need an issue + discussion first.
 
-6. **Run tests locally.** `npm test` must be green. If you added or changed CLI behavior, add a `scripts/test-*.sh` for it and wire it into the `test` script in `package.json`.
+5. **Run tests locally.** `npm test` must be green. If you added or changed CLI behavior, add a `scripts/test-*.sh` for it and wire it into the `test` script in `package.json`.
 
-7. **Open a PR** using the [PR template](.github/PULL_REQUEST_TEMPLATE.md). **Copy every Acceptance line from the `G##` goal into the PR checklist and tick each one.** PRs that skip this get bounced back.
+6. **Mark the PR ready for review** when every Acceptance line is checked and CI is green.
 
-8. **Respond to review.** First-review SLA is ~7 days. Be patient and kind.
+7. **Respond to review.** First-review SLA is ~7 days. Be patient and kind. PRs that skip the Acceptance checklist get bounced back.
+
+**Race conditions.** If two non-draft PRs land on the same goal at the same time, the first to be merged wins. The other can be rebased onto the merged work or closed. This rarely happens in practice — the draft-PR-as-claim signal is enough.
+
+**What if the goal has no formal Acceptance lines?** Some early `G##` goals are less rigid. In that case, write your own Acceptance lines in the PR description, derived from the Deliverables section, and ask for sign-off on them as part of the review. The maintainer will fold them back into GOALS.md.
 
 ## Test patterns
 
