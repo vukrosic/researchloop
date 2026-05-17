@@ -603,6 +603,7 @@
           <div class="live-stat"><div class="lbl">Elapsed</div><div class="val" id="liveElapsed">—</div></div>
           <div class="live-stat"><div class="lbl">Last update</div><div class="val" id="liveLastUpdate">—</div></div>
           <div class="live-stat"><div class="lbl">Last metric</div><div class="val" id="liveLastMetric">—</div></div>
+          <div class="live-stat"><div class="lbl">Est. cost</div><div class="val" id="liveCost">—</div></div>
           <div class="live-stat"><div class="lbl">ETA</div><div class="val" id="liveEta">—</div></div>
         </div>
         <div class="live-command mono" id="liveCommand">—</div>
@@ -683,6 +684,7 @@
                       <th>Points</th>
                       <th>Final</th>
                       <th>Δ</th>
+                      <th>Cost</th>
                       <th>Started</th>
                     </tr>
                   </thead>
@@ -1243,12 +1245,12 @@
             </div>
             <div class="panel-body">
               <div class="stat-grid-3">
-                <div class="mini-stat"><div class="l">GPU-hours today</div><div class="v">3.4</div><div class="s">of 8 cap · 42%</div></div>
-                <div class="mini-stat"><div class="l">$ est today</div><div class="v">$ 6.80</div><div class="s">@ $2/GPU-hr</div></div>
-                <div class="mini-stat"><div class="l">Tokens trained</div><div class="v">412 M</div><div class="s">across 7 runs</div></div>
-                <div class="mini-stat"><div class="l">Avg run cost</div><div class="v">$ 0.97</div><div class="s">last 7 days</div></div>
-                <div class="mini-stat"><div class="l">Cheapest win/$</div><div class="v">−0.18</div><div class="s">val_loss / $1 · RMSNorm swap</div></div>
-                <div class="mini-stat"><div class="l">Disk used</div><div class="v">38.2 GB</div><div class="s">ckpts + logs</div></div>
+                <div class="mini-stat"><div class="l">GPU-hours today</div><div class="v" id="costGpuHours">—</div><div class="s">estimated</div></div>
+                <div class="mini-stat"><div class="l">$ est total</div><div class="v" id="costTotal">—</div><div class="s">all runs</div></div>
+                <div class="mini-stat"><div class="l">Latest cost</div><div class="v" id="costLatest">—</div><div class="s">last run</div></div>
+                <div class="mini-stat"><div class="l">Avg run cost</div><div class="v" id="costAvg">—</div><div class="s">per run</div></div>
+                <div class="mini-stat"><div class="l">Best metric</div><div class="v" id="costBestMetric">—</div><div class="s">delta from baseline</div></div>
+                <div class="mini-stat"><div class="l">Wall time</div><div class="v" id="costWallTime">—</div><div class="s">total across runs</div></div>
               </div>
               <div class="bar" style="margin-top:12px"><span style="width:42%"></span></div>
               <p style="color:var(--muted); font-size:12px; margin:8px 0 0">Daily budget bar · pause sweep at 100%.</p>
@@ -1613,6 +1615,7 @@
               <td>${t ? (t.values || []).length : 0}</td>
               <td>${escapeHtml(metricLabel(metricKey, final))}</td>
               <td class="${deltaClass(delta, state.preferHigher)}">${escapeHtml(deltaLabel(delta, state.preferHigher))}</td>
+              <td>${escapeHtml(r.est_cost_usd != null ? "$" + Number(r.est_cost_usd).toFixed(3) : "—")}</td>
               <td>${escapeHtml(formatRelative(r.started_at || r.timestamp))}</td>
             </tr>
           `;
@@ -1724,6 +1727,7 @@
         $("liveLastMetric").textContent = Number.isFinite(Number(lastVal))
           ? `${state.primaryMetric || "metric"}: ${Number(lastVal).toFixed(4)}`
           : "—";
+        $("liveCost").textContent = live.est_cost_usd != null ? "$" + Number(live.est_cost_usd).toFixed(4) : "—";
         $("liveEta").innerHTML = `— <span class="placeholder-badge" style="margin-left:6px">placeholder</span>`;
       }
 
@@ -1843,6 +1847,25 @@
       }
 
       // ───── main render ─────
+      function renderCostTracker(state) {
+        const sum = state.summary || {};
+        const runs = state.runs || [];
+
+        $("costTotal").textContent = sum.totalCost != null ? "$" + Number(sum.totalCost).toFixed(2) : "—";
+        $("costAvg").textContent = sum.avgCost != null ? "$" + Number(sum.avgCost).toFixed(3) : "—";
+        $("costLatest").textContent = sum.latestRunCost != null ? "$" + Number(sum.latestRunCost).toFixed(4) : "—";
+
+        const wallSecs = runs.reduce((s, r) => s + (r.wall_seconds || 0), 0);
+        const wallHours = wallSecs / 3600;
+        $("costWallTime").textContent = wallSecs > 0 ? wallHours.toFixed(2) + "h" : "—";
+
+        const bestMetric = sum.bestRun ? sum.bestRun.value : null;
+        $("costBestMetric").textContent = bestMetric != null ? bestMetric.toFixed(4) : "—";
+
+        const gpuHrs = wallHours;
+        $("costGpuHours").textContent = gpuHrs > 0 ? gpuHrs.toFixed(1) + "h" : "—";
+      }
+
       function render(state) {
         latestState = state;
         const sum = state.summary || {};
@@ -1853,6 +1876,7 @@
         renderRepo(state);
         renderLive(state);
         renderKPIs(state);
+        renderCostTracker(state);
         renderGoal(state);
         renderPlan(state);
         renderResources(state);
@@ -1920,6 +1944,8 @@
             <div class="pill"><strong>Exit:</strong> ${escapeHtml(String(run.exit_code ?? "—"))}</div>
             <div class="pill"><strong>Started:</strong> ${escapeHtml(formatTime(run.started_at))}</div>
             <div class="pill"><strong>Finished:</strong> ${escapeHtml(formatTime(run.timestamp))}</div>
+            <div class="pill"><strong>Wall time:</strong> ${escapeHtml(run.wall_seconds ? run.wall_seconds + "s" : "—")}</div>
+            <div class="pill"><strong>Est. cost:</strong> ${escapeHtml(run.est_cost_usd != null ? "$" + Number(run.est_cost_usd).toFixed(4) : "—")}</div>
             <div class="pill" style="grid-column: span 2"><strong>Agent:</strong> ${escapeHtml(run.agent || "—")}</div>
           </div>
           <div style="margin-bottom:14px">

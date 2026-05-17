@@ -1627,6 +1627,12 @@ function summarizeDashboardRuns(runs, primaryMetric, preferHigher = false) {
       timestamp: entry.run.timestamp,
     }));
 
+  const costEntries = runs
+    .map((run) => run.est_cost_usd)
+    .filter((v) => v != null && typeof v === "number" && Number.isFinite(v));
+  const totalCost = costEntries.reduce((s, v) => s + v, 0);
+  const avgCost = costEntries.length > 0 ? totalCost / costEntries.length : null;
+
   return {
     totalRuns: runs.length,
     completeRuns: completeRuns.length,
@@ -1635,6 +1641,9 @@ function summarizeDashboardRuns(runs, primaryMetric, preferHigher = false) {
     bestRun,
     worstRun,
     series,
+    totalCost: costEntries.length > 0 ? totalCost : null,
+    avgCost,
+    latestRunCost: latestRun?.est_cost_usd ?? null,
   };
 }
 
@@ -1718,6 +1727,7 @@ function detectActiveRun(cwd, runs, logTail) {
     logPath: latest.log || "",
     logModifiedAt: logTail?.modifiedAt || null,
     reason: statusActive ? "status" : "log_recent",
+    est_cost_usd: latest.est_cost_usd ?? null,
   };
 }
 
