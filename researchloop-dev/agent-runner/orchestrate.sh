@@ -93,17 +93,33 @@ spawn_implementer() {
     return 0
   fi
 
+  # Sandbox / permission mode flags (verified against codex 0.130 + claude 2.1.143).
+  # Default: workspace-write / acceptEdits — agent can edit files inside the
+  # worktree but cannot escape the sandbox. Override to full-bypass with
+  # DANGEROUS=1, only for trusted prompts in a disposable worktree.
+  local codex_perm="--sandbox workspace-write --skip-git-repo-check"
+  local claude_perm="--permission-mode acceptEdits"
+  if [ "${DANGEROUS:-0}" = "1" ]; then
+    codex_perm="--dangerously-bypass-approvals-and-sandbox --skip-git-repo-check"
+    claude_perm="--dangerously-skip-permissions"
+  fi
+
   cd "$worktree"
   case "$IMPLEMENTER" in
     codex)
-      # codex exec is the non-interactive mode; verify flags against your installed version
-      timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec --cd "$worktree" "$(cat "$prompt_file")" \
+      timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
+        --cd "$worktree" \
+        $codex_perm \
+        --output-last-message "$STATE_DIR/implementer-$issue_num.final.txt" \
+        "$(cat "$prompt_file")" \
         2>&1 | tee "$STATE_DIR/implementer-$issue_num.log"
       ;;
     claude)
-      # claude -p (--print) is the non-interactive mode
-      timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p "$(cat "$prompt_file")" \
+      timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p \
+        "$(cat "$prompt_file")" \
         --add-dir "$worktree" \
+        $claude_perm \
+        ${CLAUDE_MAX_BUDGET:+--max-budget-usd "$CLAUDE_MAX_BUDGET"} \
         2>&1 | tee "$STATE_DIR/implementer-$issue_num.log"
       ;;
     *) die "unknown IMPLEMENTER: $IMPLEMENTER";;
@@ -140,13 +156,20 @@ spawn_reviewer() {
   fi
 
   local review_out="$STATE_DIR/review-$pr_num.md"
+  # Reviewer is read-only: it only reads the diff and posts a comment.
+  # No write permission needed; default sandbox is enough.
   case "$REVIEWER" in
     claude)
-      timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p "$(cat "$prompt_file")" \
+      timeout "$AGENT_TIMEOUT" "$CLAUDE_BIN" -p \
+        "$(cat "$prompt_file")" \
+        --permission-mode default \
         > "$review_out"
       ;;
     codex)
-      timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec "$(cat "$prompt_file")" \
+      timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
+        --sandbox read-only \
+        --skip-git-repo-check \
+        "$(cat "$prompt_file")" \
         > "$review_out"
       ;;
     *) die "unknown REVIEWER: $REVIEWER";;
