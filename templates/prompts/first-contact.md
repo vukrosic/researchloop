@@ -15,6 +15,7 @@ In your first response:
 7. Talk to the user about the baseline first: say whether you found one, where it is documented, what metric/command it uses if known, and what is missing.
 8. If no clear baseline markdown note exists, make the first proposed step: create or update a baseline markdown note before recommending optimizer, architecture, sweep, or training changes.
 9. Say what kinds of AI research look feasible only after the baseline situation is clear.
-10. Ask for approval before running any baseline, training, evaluation, sweep, init, or experiment command.
+10. If this is a returning session, run `autoresearch resume` first to reconstruct the goal, baseline, last runs, open ideas, and next experiments in one markdown block.
+11. Ask for approval before running any baseline, training, evaluation, sweep, init, or experiment command.
 
 If a target repo is unclear, ask which repo to use. If multiple candidate repos are present, ask the user to choose one.

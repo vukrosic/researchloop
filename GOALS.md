@@ -325,6 +325,32 @@ Two workers may not edit the same template file unless one is the integration ow
 
 ---
 
+### G57 — `autoresearch resume`
+
+**Motivation.** Returning to an active loop the next morning should take one command, not a full reread of the ledger and scratchpad files.
+
+**Deliverables.**
+- `autoresearch resume [--dir PATH] [--since DATE] [--last N] [--write]`.
+- Prints markdown with current goal, baseline, recent runs, open ideas, and three ranked next experiments.
+- `--since` filters runs after the given ISO date or timestamp.
+- `--write` saves the markdown block to `.researchloop/RESUME.md`.
+- "Next 3 untried" is a simple heuristic: value gaps in tried run-family tokens plus open idea notes, not an LLM suggestion engine.
+
+**Acceptance.**
+- `autoresearch resume` prints markdown to stdout: goal, baseline, last 3 runs, open ideas, 3 ranked next experiments.
+- `--since DATE` filters runs to after that timestamp (ISO date).
+- `--write` saves to `.researchloop/RESUME.md` instead of stdout.
+- `--last N` configures how many recent runs to show (default 3).
+- Empty ledger prints `no state yet — run autoresearch goal first` and exits 0.
+
+**Test plan.** `scripts/test-resume.sh` covers: happy path, empty ledger, ledger with crashed runs, `--since` filter, `--write`.
+
+**Files owned.** `bin/researchloop.js`, `scripts/test-resume.sh`, `docs/getting-started.md`, `templates/prompts/first-contact.md`.
+
+**Depends on.** None. **Effort.** S. **Agent role.** Worker — CLI feature.
+
+---
+
 ## Tier 2 — Evaluation layer
 
 ### G04 — Pluggable evaluation runner (minimal `eval.yaml` schema)
