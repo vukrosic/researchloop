@@ -2370,6 +2370,113 @@ function cmdFailures() {
   }
 }
 
+function cmdBaselineStatus() {
+  const cwd = targetDir();
+  const asJson = hasFlag("--format") && option("--format") === "json";
+  const baselineFile = path.join(cwd, ".researchloop", "baseline.md");
+
+  if (!fs.existsSync(baselineFile)) {
+    const msg = "Baseline not found. Run `autoresearch baseline` or create .researchloop/baseline.md";
+    if (asJson) {
+      process.stdout.write(JSON.stringify({ status: "missing", message: msg }, null, 2) + "\n");
+    } else {
+      console.log("Error: " + msg);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const raw = fs.readFileSync(baselineFile, "utf8");
+
+  // Parse the two sections
+  const whatToRecord = extractSection(raw, "What To Record");
+  const frozenSurfaces = extractSection(raw, "Frozen Surfaces");
+  const notes = extractSection(raw, "Notes");
+
+  const requiredWhatToRecord = ["Baseline artifact", "Metric", "Direction", "Command or config"];
+  const optionalWhatToRecord = ["Model/data/training budget", "System or accelerator", "Known limitations"];
+  const requiredFrozen = ["Dataset", "Model size", "Seed"];
+  const optionalFrozen = ["Token budget or eval budget", "Optimizer", "Architecture"];
+
+  const allRequired = [...requiredWhatToRecord, ...requiredFrozen];
+  const missing = [];
+
+  for (const key of requiredWhatToRecord) {
+    if (!sectionHasValue(whatToRecord, key)) missing.push(key);
+  }
+  for (const key of requiredFrozen) {
+    if (!sectionHasValue(frozenSurfaces, key)) missing.push(key);
+  }
+
+  if (missing.length) {
+    if (asJson) {
+      process.stdout.write(JSON.stringify({ status: "incomplete", missing_fields: missing, message: "Baseline is missing required fields" }, null, 2) + "\n");
+    } else {
+      console.log("Baseline is incomplete. Missing fields:");
+      for (const m of missing) console.log("  - " + m);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (asJson) {
+    process.stdout.write(JSON.stringify({
+      status: "complete",
+      metric: extractValue(whatToRecord, "Metric"),
+      direction: extractValue(whatToRecord, "Direction"),
+      command: extractValue(whatToRecord, "Command or config"),
+      baseline_artifact: extractValue(whatToRecord, "Baseline artifact"),
+      frozen_variables: {
+        dataset: extractValue(frozenSurfaces, "Dataset"),
+        model_size: extractValue(frozenSurfaces, "Model size"),
+        seed: extractValue(frozenSurfaces, "Seed"),
+        optimizer: extractValue(frozenSurfaces, "Optimizer") || null,
+        architecture: extractValue(frozenSurfaces, "Architecture") || null,
+      },
+      caveats: extractValue(whatToRecord, "Known limitations") || null,
+    }, null, 2) + "\n");
+  } else {
+    console.log("Baseline is complete.");
+    console.log("");
+    console.log("Metric: " + extractValue(whatToRecord, "Metric") + " (" + extractValue(whatToRecord, "Direction") + ")");
+    console.log("Command: " + extractValue(whatToRecord, "Command or config"));
+    console.log("Artifact: " + extractValue(whatToRecord, "Baseline artifact"));
+    console.log("");
+    console.log("Frozen surfaces:");
+    console.log("  Dataset: " + extractValue(frozenSurfaces, "Dataset"));
+    console.log("  Model size: " + extractValue(frozenSurfaces, "Model size"));
+    console.log("  Seed: " + extractValue(frozenSurfaces, "Seed"));
+    const opt = extractValue(frozenSurfaces, "Optimizer");
+    const arch = extractValue(frozenSurfaces, "Architecture");
+    if (opt) console.log("  Optimizer: " + opt);
+    if (arch) console.log("  Architecture: " + arch);
+    const caveats = extractValue(whatToRecord, "Known limitations");
+    if (caveats) {
+      console.log("");
+      console.log("Caveats: " + caveats);
+    }
+  }
+}
+
+function extractSection(text, heading) {
+  const escaped = heading.replace(/[.*+?^${}()|[]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`^## ${escaped}\\n+([\\s\\S]*?)(?=\\n## )`, "mi"));
+  return match ? match[1] : "";
+}
+
+function sectionHasValue(section, key) {
+  const pattern = `^\\s*[-*]?\\s*${key.replace(/[.*+?^${}()|[]\\]/g, "\\$&")}\\s*[:\\-]\\s*(.+)\\n`;
+  const re = new RegExp(pattern, "mi");
+  return re.test(section);
+}
+
+function extractValue(section, key) {
+  const pattern = `^\\s*[-*]?\\s*${key.replace(/[.*+?^${}()|[]\\]/g, "\\$&")}\\s*[:\\-]\\s*(.+)\\n`;
+  const re = new RegExp(pattern, "mi");
+  const m = section.match(re);
+  return m ? m[1].trim() : "";
+}
+
 function cmdHelp() {
   console.log(`AutoResearch-AI ${packageVersion()}
 
@@ -2389,6 +2496,7 @@ Usage:
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
   autoresearch dashboard [--dir PATH] [--host HOST] [--port PORT]
   autoresearch report [--dir PATH]
+  autoresearch baseline-status [--dir PATH] [--format json]
   autoresearch failures [--top N] [--format json] [--dir PATH]
   autoresearch --version
 
@@ -2437,6 +2545,8 @@ async function main() {
     cmdDashboard();
   } else if (command === "report") {
     cmdReport();
+  } else if (command === "baseline-status") {
+    cmdBaselineStatus();
   } else if (command === "failures") {
     cmdFailures();
   } else {
