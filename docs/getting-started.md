@@ -202,6 +202,16 @@ If you want the prompt to narrow in on a family of experiments, use one of the b
 - `attention`
 - `training-ladder`
 
+## 7c. Resume a session the next morning
+
+When you come back to an active loop, start with:
+
+```bash
+autoresearch resume
+```
+
+Use `--since` to pick up from a specific timestamp and `--last` to show more or fewer recent runs. If you want a saved handoff block, add `--write` and the command will write `.researchloop/RESUME.md` instead of printing the markdown to stdout.
+
 ## 8. Record and compare runs
 
 After a run finishes:

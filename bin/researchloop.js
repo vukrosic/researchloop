@@ -885,6 +885,100 @@ function cmdReport() {
   }
 }
 
+function cmdResume() {
+  const cwd = targetDir();
+  const researchDir = path.join(cwd, ".researchloop");
+  const ledger = path.join(researchDir, "scratchpad", "runs.jsonl");
+  const lastCount = Math.max(1, Number(option("--last", 3)) || 3);
+  const sinceText = String(option("--since", "") || "").trim();
+  const sinceDate = sinceText ? new Date(sinceText) : null;
+  const writeToFile = hasFlag("--write");
+
+  if (sinceText && (!sinceDate || Number.isNaN(sinceDate.getTime()))) {
+    console.error(`Invalid --since date: ${sinceText}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const rows = parseRunsLedger(ledger).filter((row) => !row.parse_error);
+  const filtered = parseResumeRuns(rows, sinceDate);
+
+  if (!filtered.length) {
+    console.log("no state yet — run autoresearch goal first");
+    return;
+  }
+
+  const goal = parseGoalFile(path.join(researchDir, "goal.md"));
+  const baseline = readBaselineSummary(cwd);
+  const ideas = readIdeaNotes(cwd);
+  const metricName = goal.metric || baseline.metric || choosePrimaryMetric(goal, filtered);
+  const preferHigher = String(goal.direction || baseline.direction || "").toLowerCase().includes("high");
+  const baselineValue = Number.isFinite(baseline.value) ? baseline.value : Number.NaN;
+  const recentRuns = filtered.slice(-lastCount);
+  const candidates = collectResumeCandidates(filtered, baselineValue, preferHigher, ideas);
+  const headerDate = new Date().toLocaleDateString("en-CA");
+  const sinceLabel = sinceText || "all time";
+
+  const lines = [
+    `# RESUME CONTEXT — ${headerDate}${sinceText ? ` (since ${sinceLabel})` : ""}`,
+    "",
+    "## Goal",
+    goal.goal || "not documented yet",
+    "",
+    "## Baseline",
+    baseline.summary,
+    "",
+    `## Last ${lastCount} runs`,
+    "| id | " + (metricName || "metric") + " | delta | status |",
+    "| --- | --- | --- | --- |",
+  ];
+
+  for (const run of recentRuns) {
+    const value = Number(run.metrics?.[metricName]);
+    const status = String(run.status || "").toLowerCase();
+    const displayStatus = status === "complete" || status === "completed" || status === "recorded"
+      ? "done"
+      : status || "unknown";
+    const delta = formatResumeDelta(value, baselineValue);
+    lines.push(`| ${run.id} | ${Number.isFinite(value) ? formatResumeNumber(value) : "NaN"} | ${delta} | ${displayStatus} |`);
+  }
+
+  if (!recentRuns.length) {
+    lines.push("| — | — | — | — |");
+  }
+
+  lines.push("");
+  lines.push(`## Open ideas (${ideas.length})`);
+  if (ideas.length) {
+    for (const idea of ideas.slice(0, 3)) {
+      lines.push(`- ${idea.slug} — ${idea.proposed ? `proposed ${idea.proposed}` : "proposed date unknown"}`);
+    }
+  } else {
+    lines.push("- none yet");
+  }
+
+  lines.push("");
+  lines.push("## Next 3 untried, ranked by likely value");
+  if (candidates.length) {
+    candidates.forEach((candidate, index) => {
+      lines.push(`${index + 1}. ${candidate.title} (${candidate.reason})`);
+    });
+  } else {
+    lines.push("1. none yet");
+  }
+
+  const output = `${lines.join("\n")}\n`;
+  if (writeToFile) {
+    ensureDir(researchDir);
+    const file = path.join(researchDir, "RESUME.md");
+    fs.writeFileSync(file, output);
+    console.log(`Resume context written to ${path.relative(cwd, file)}`);
+    return;
+  }
+
+  process.stdout.write(output);
+}
+
 function cmdDiffRuns() {
   const cwd = targetDir();
   const diffRunsIdx = args.findIndex((a) => a === "diff-runs");
@@ -1384,6 +1478,232 @@ function parseGoalFile(goalFile) {
   };
 }
 
+function extractFirstNumericPair(text) {
+  for (const rawLine of String(text || "").split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = line.match(/^[-*]?\s*([A-Za-z0-9_./-]+)\s*[:=]\s*([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*$/);
+    if (match) {
+      const value = Number(match[2]);
+      if (Number.isFinite(value)) {
+        return { key: match[1], value };
+      }
+    }
+  }
+  return null;
+}
+
+function extractMetricValueFromText(text, metricName) {
+  const name = String(metricName || "").trim();
+  if (!name) return Number.NaN;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp(`\\b${escaped}\\b\\s*[:=]\\s*["']?([+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)`, "i"),
+    new RegExp(`["']?([+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)["']?\\s*[:=]\\s*\\b${escaped}\\b`, "i"),
+  ];
+  for (const pattern of patterns) {
+    const match = String(text || "").match(pattern);
+    if (match && Number.isFinite(Number(match[1]))) {
+      return Number(match[1]);
+    }
+  }
+  return Number.NaN;
+}
+
+function formatResumeNumber(value) {
+  if (!Number.isFinite(Number(value))) {
+    return "NaN";
+  }
+  const numeric = Number(value);
+  const abs = Math.abs(numeric);
+  if (abs !== 0 && (abs < 0.001 || abs >= 1000)) {
+    const [mantissa, exponent] = numeric.toExponential(2).split("e");
+    return `${Number(mantissa)}e${Number(exponent)}`;
+  }
+  return String(Number(numeric.toFixed(4)));
+}
+
+function formatResumeDelta(value, baselineValue) {
+  if (!Number.isFinite(value) || !Number.isFinite(baselineValue)) {
+    return "—";
+  }
+  const delta = value - baselineValue;
+  return `${delta > 0 ? "+" : ""}${formatResumeNumber(delta)}`;
+}
+
+function readIdeaNotes(cwd) {
+  const ideasDir = path.join(cwd, ".researchloop", "scratchpad", "ideas");
+  if (!fs.existsSync(ideasDir)) {
+    return [];
+  }
+
+  const ideas = [];
+  for (const entry of fs.readdirSync(ideasDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+    const file = path.join(ideasDir, entry.name);
+    let stat = null;
+    try {
+      stat = fs.statSync(file);
+    } catch {
+      stat = null;
+    }
+    const raw = readTextIfExists(file);
+    const titleMatch = raw.match(/^#\s+(.+?)\s*$/m);
+    const proposedMatch = raw.match(/\bproposed\b[:\s]+(\d{4}-\d{2}-\d{2})\b/i);
+    ideas.push({
+      title: titleMatch ? titleMatch[1].trim() : entry.name.replace(/\.md$/, ""),
+      slug: entry.name.replace(/\.md$/, ""),
+      proposed: proposedMatch ? proposedMatch[1] : (stat ? stat.mtime.toISOString().slice(0, 10) : ""),
+      raw,
+      file: path.relative(cwd, file),
+      mtime: stat ? stat.mtimeMs : 0,
+    });
+  }
+
+  ideas.sort((a, b) => b.mtime - a.mtime || a.title.localeCompare(b.title));
+  return ideas;
+}
+
+function readBaselineSummary(cwd) {
+  const baselineFile = path.join(cwd, ".researchloop", "baseline.md");
+  if (!fs.existsSync(baselineFile)) {
+    return {
+      exists: false,
+      path: path.relative(cwd, baselineFile),
+      metric: "",
+      direction: "",
+      value: Number.NaN,
+      summary: "not documented yet",
+    };
+  }
+
+  const raw = readTextIfExists(baselineFile);
+  const metricFromField = extractValue(raw, "Metric") || extractValue(raw, "Target Metric");
+  const direction = extractValue(raw, "Direction");
+  const artifact = extractValue(raw, "Baseline artifact") || path.relative(cwd, baselineFile);
+  const firstPair = extractFirstNumericPair(raw);
+  const metric = metricFromField || firstPair?.key || "";
+  const metricValue = Number.isFinite(extractMetricValueFromText(raw, metric))
+    ? extractMetricValueFromText(raw, metric)
+    : (firstPair && firstPair.key === metric ? firstPair.value : Number.NaN);
+  const summary = metric
+    ? (Number.isFinite(metricValue) ? `${metric}: ${formatResumeNumber(metricValue)} — ${artifact}` : `${metric} — ${artifact}`)
+    : `documented in ${artifact}`;
+
+  return {
+    exists: true,
+    path: path.relative(cwd, baselineFile),
+    metric,
+    direction,
+    value: metricValue,
+    summary,
+  };
+}
+
+function parseResumeRuns(runs, sinceDate) {
+  return runs.filter((run) => {
+    if (!run || run.parse_error) {
+      return false;
+    }
+    if (!sinceDate) {
+      return true;
+    }
+    const stamp = new Date(run.timestamp || run.started_at || run.created_at || "");
+    return Number.isFinite(stamp.getTime()) ? stamp > sinceDate : false;
+  });
+}
+
+function collectResumeCandidates(runs, baselineValue, preferHigher, openIdeas) {
+  const candidateMap = new Map();
+  const numericFamilies = new Map();
+
+  for (const run of runs) {
+    const fields = [
+      run.id,
+      run.notes,
+      run.command,
+      run.kill_reason,
+    ].filter(Boolean);
+    const status = String(run.status || "").toLowerCase();
+    const crashed = status.includes("fail") || status.includes("crash") || status.includes("kill");
+    for (const field of fields) {
+      const text = String(field);
+      const regex = /(^|[^A-Za-z0-9])([A-Za-z][A-Za-z0-9_]{0,31})[-_=]([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const key = String(match[2]).toLowerCase();
+        const value = Number(match[3]);
+        if (!Number.isFinite(value)) {
+          continue;
+        }
+        if (!numericFamilies.has(key)) {
+          numericFamilies.set(key, []);
+        }
+        numericFamilies.get(key).push({ value, crashed });
+      }
+    }
+  }
+
+  for (const [key, entries] of numericFamilies.entries()) {
+    const values = [...new Set(entries.map((entry) => entry.value))].sort((a, b) => a - b);
+    if (values.length >= 2) {
+      const left = values[0];
+      const right = values[values.length - 1];
+      const chosen = (left + right) / 2;
+      const reason = `between ${formatResumeNumber(left)} and ${formatResumeNumber(right)}`;
+      if (Number.isFinite(chosen)) {
+        const label = `${key}-${formatResumeNumber(chosen)}`;
+        const keyLower = label.toLowerCase();
+        candidateMap.set(keyLower, {
+          title: label,
+          reason,
+          score: Number.isFinite(baselineValue) ? 0.95 : 0.9,
+        });
+      }
+    }
+
+    const crashEntries = entries.filter((entry) => entry.crashed && entry.value > 0);
+    if (crashEntries.length) {
+      const smallestCrash = crashEntries.slice().sort((a, b) => a.value - b.value)[0];
+      const candidateValue = smallestCrash.value / 2;
+      const label = `${key}-${formatResumeNumber(candidateValue)}`;
+      const keyLower = label.toLowerCase();
+      if (!candidateMap.has(keyLower)) {
+        candidateMap.set(keyLower, {
+          title: label,
+          reason: `smaller than crashed ${formatResumeNumber(smallestCrash.value)}`,
+          score: 0.88,
+        });
+      }
+    }
+  }
+
+  for (const idea of openIdeas) {
+    const key = (idea.slug || idea.title || "").toLowerCase();
+    if (!key || candidateMap.has(key)) {
+      continue;
+    }
+    const recency = idea.mtime ? Math.max(0, Math.min(1, 1 - (Date.now() - idea.mtime) / 31_536_000_000)) : 0.5;
+    candidateMap.set(key, {
+      title: idea.title,
+      reason: idea.proposed ? `proposed ${idea.proposed}` : "from open ideas",
+      score: 0.6 + recency * 0.1,
+    });
+  }
+
+  if (!candidateMap.size) {
+    candidateMap.set("fallback", {
+      title: preferHigher ? "increase-one-step-from-current-best" : "decrease-one-step-from-current-best",
+      reason: "fallback from goal and baseline only",
+      score: 0.2,
+    });
+  }
+
+  return [...candidateMap.values()]
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+    .slice(0, 3);
+}
+
 function parsePlanFile(planFile) {
   const raw = readTextIfExists(planFile);
   return {
@@ -1650,7 +1970,13 @@ function readSystemMetrics() {
     hostname,
     platform,
     nodeVersion,
-    uptimeSeconds: Math.round(os.uptime()),
+    uptimeSeconds: (() => {
+      try {
+        return Math.round(os.uptime());
+      } catch {
+        return null;
+      }
+    })(),
     cpu: {
       count: cpuCount,
       model: cpus[0]?.model || "unknown",
@@ -3069,6 +3395,7 @@ Usage:
   autoresearch record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]    (manual escape hatch; prefer 'run')
   autoresearch run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
   autoresearch baseline [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
+  autoresearch resume [--dir PATH] [--since DATE] [--last N] [--write]
   autoresearch scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
@@ -3118,6 +3445,8 @@ async function main() {
     await cmdRun(false);
   } else if (command === "baseline") {
     await cmdRun(true);
+  } else if (command === "resume") {
+    cmdResume();
   } else if (command === "scan-papers") {
     await cmdScanPapers();
   } else if (command === "compare") {
