@@ -2,14 +2,12 @@
   <img src="./assets/autoresearch-banner.webp" alt="AutoResearch-AI banner" width="100%" />
 </p>
 
-<p align="center">
-  <a href="https://github.com/vukrosic/autoresearch-ai/actions/workflows/ci.yml"><img src="https://github.com/vukrosic/autoresearch-ai/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/autoresearch-ai"><img src="https://img.shields.io/npm/v/autoresearch-ai.svg" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/autoresearch-ai"><img src="https://img.shields.io/npm/dm/autoresearch-ai.svg" alt="npm downloads" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/npm/l/autoresearch-ai.svg" alt="MIT License" /></a>
-  <img src="https://img.shields.io/node/v/autoresearch-ai.svg" alt="Node version" />
-  <img src="https://img.shields.io/badge/status-alpha-orange.svg" alt="Status: alpha" />
-</p>
+[![CI](https://github.com/vukrosic/autoresearch-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vukrosic/autoresearch-ai/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/autoresearch-ai.svg)](https://www.npmjs.com/package/autoresearch-ai)
+[![npm downloads](https://img.shields.io/npm/dm/autoresearch-ai.svg)](https://www.npmjs.com/package/autoresearch-ai)
+[![License: MIT](https://img.shields.io/npm/l/autoresearch-ai.svg)](./LICENSE)
+[![Node version](https://img.shields.io/node/v/autoresearch-ai.svg)](https://nodejs.org)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
 AutoResearch-AI is an open source npm package for autonomous AI research workflows, published on npm as `autoresearch-ai`.
 
