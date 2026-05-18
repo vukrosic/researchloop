@@ -3866,25 +3866,18 @@ function cmdQuery() {
   console.log(lines.join("\n"));
 }
 
-function cmdTopic() {
+function cmdPropose() {
   const cwd = targetDir();
-  const mode = option("--mode", "propose");
+  const n = parseInt(option("--n", "5"), 10);
   const doWrite = hasFlag("--write");
-  const positional = positionalText();
+  const mode = option("--mode", "propose");
+  const focus = option("--focus", "all");
+  const metric = option("--metric", null);
+  const direction = option("--direction", null);
 
-  const topicText = positional || option("--topic", "");
-  if (!topicText && !hasFlag("--topic")) {
-    console.error("Usage: autoresearch topic "<text>" [--mode propose|novel|autonomous] [--dir PATH] [--write]");
-    process.exitCode = 1;
-    return;
-  }
-
-  // Check baseline status (reuses baseline logic)
+  // Check baseline status
   const baselineFile = path.join(cwd, ".researchloop", "baseline.md");
-  let baselineState = "unknown";
-  let baselineMetric = null;
-  let baselineValue = null;
-
+  let baselineInfo = { status: "missing", metric: null, direction: null };
   if (fs.existsSync(baselineFile)) {
     const raw = fs.readFileSync(baselineFile, "utf8");
     const whatToRecord = extractSection(raw, "What To Record");
@@ -3898,109 +3891,156 @@ function cmdTopic() {
     for (const key of requiredFrozen) {
       if (!sectionHasValue(frozenSurfaces, key)) missing.push(key);
     }
-    baselineState = missing.length === 0 ? "complete" : "incomplete";
-    baselineMetric = extractValue(whatToRecord, "Metric") || null;
-    baselineValue = extractValue(whatToRecord, "Metric") || null;
-  } else {
-    baselineState = "missing";
+    baselineInfo.status = missing.length === 0 ? "complete" : "incomplete";
+    baselineInfo.metric = extractValue(whatToRecord, "Metric") || null;
+    baselineInfo.direction = extractValue(whatToRecord, "Direction") || null;
   }
 
-  // Check for prior runs
-  let priorRunCount = 0;
-  let bestRun = null;
+  // Check if baseline is locked
+  const lockFile = path.join(cwd, ".researchloop", "baseline.lock");
+  if (fs.existsSync(lockFile)) {
+    try {
+      const lock = JSON.parse(fs.readFileSync(lockFile, "utf8"));
+      baselineInfo.locked_at = lock.locked_at;
+      baselineInfo.baseline_value = lock.baseline_value;
+    } catch { /* ignore */ }
+  }
+
+  // Collect prior runs
+  let runs = [];
   try {
     const runsPath = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
     if (fs.existsSync(runsPath)) {
       const lines = fs.readFileSync(runsPath, "utf8").split("\n").filter(l => l.trim());
-      priorRunCount = lines.length;
-      for (const line of lines.reverse()) {
-        const row = JSON.parse(line);
-        if (row.status === "completed" && row.value != null) {
-          bestRun = row;
-          break;
-        }
+      for (const line of lines) {
+        runs.push(JSON.parse(line));
       }
     }
   } catch { /* ignore */ }
 
-  // Check for existing paper notes
+  // Collect paper notes
   let paperNotes = [];
   try {
     const papersDir = path.join(cwd, ".researchloop", "scratchpad", "papers");
     if (fs.existsSync(papersDir)) {
       for (const f of fs.readdirSync(papersDir)) {
-        if (f.endsWith(".md")) paperNotes.push(f.replace(".md", ""));
+        if (f.endsWith(".md")) {
+          const content = fs.readFileSync(path.join(papersDir, f), "utf8");
+          paperNotes.push({ id: f.replace(".md", ""), content });
+        }
       }
     }
   } catch { /* ignore */ }
 
-  // Autonomy mode requires locked baseline
-  if (mode === "autonomous") {
-    const lockFile = path.join(cwd, ".researchloop", "baseline.lock");
-    if (!fs.existsSync(lockFile)) {
-      console.error("topic: --mode autonomous requires a locked baseline. Run `autoresearch baseline --lock` first.");
-      process.exitCode = 1;
-      return;
+  // Collect hypotheses
+  let hypotheses = [];
+  try {
+    const hypDir = path.join(cwd, ".researchloop", "scratchpad", "hypotheses");
+    if (fs.existsSync(hypDir)) {
+      for (const f of fs.readdirSync(hypDir)) {
+        if (f.endsWith(".md")) {
+          const content = fs.readFileSync(path.join(hypDir, f), "utf8");
+          hypotheses.push({ id: f.replace(".md", ""), content });
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Determine target metric
+  const targetMetric = metric || baselineInfo.metric || "val_loss";
+  const targetDirection = direction || baselineInfo.direction || "lower";
+
+  // Generate proposals based on prior runs and baseline
+  const proposals = [];
+  const usedMechanisms = new Set();
+
+  // Extract mechanism from existing runs
+  for (const run of runs) {
+    if (run.params && run.params._mechanism) {
+      usedMechanisms.add(run.params._mechanism);
     }
   }
 
-  // Build output
-  const slug = topicText.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50);
-  const timestamp = new Date().toISOString().split("T")[0];
+  // Simple proposal generation based on common ML improvements
+  const proposalTemplates = [
+    { title: "Learning rate warmup", hypothesis: "Warmup prevents early gradient instability in transformers.", mechanism: "lr_warmup", change: "add warmup schedule", risk: "low" },
+    { title: "AdamW instead of Adam", hypothesis: "Decoupled weight decay in AdamW produces better regularization.", mechanism: "optimizer_change", change: "replace Adam with AdamW", risk: "low" },
+    { title: "Reduce batch size", hypothesis: "Smaller batches improve generalization for small datasets.", mechanism: "batch_reduction", change: "halve batch_size", risk: "medium" },
+    { title: "Add gradient clipping", hypothesis: "Gradient clipping prevents token-level explosion in transformers.", mechanism: "gradient_clipping", change: "set max_grad_norm=1.0", risk: "low" },
+    { title: "Increase model width", hypothesis: "Wider layers capture more complex patterns.", mechanism: "width_increase", change: "double hidden_dim", risk: "high" },
+    { title: "Dropout regularization", hypothesis: "Dropout prevents overfitting on small datasets.", mechanism: "dropout", change: "add dropout=0.1", risk: "low" },
+    { title: "Longer training with early stopping", hypothesis: "More epochs with patience finds better optimum.", mechanism: "longer_training", change: "increase epochs to 200", risk: "medium" },
+    { title: "Weight decay tuning", hypothesis: "Optimal weight decay depends on model size and dataset.", mechanism: "weight_decay", change: "sweep weight_decay 0.01-0.1", risk: "medium" },
+  ];
 
-  let output = "# Topic: " + topicText + "\n\n";
-  output += "_Generated: " + timestamp + " | Mode: " + mode + "_\n\n";
+  // Filter out already-tried mechanisms
+  const available = proposalTemplates.filter(p => !usedMechanisms.has(p.mechanism));
 
-  output += "## Baseline State\n";
-  output += "- Status: **" + baselineState + "**\n";
-  if (baselineMetric) output += "- Metric: " + baselineMetric + "\n";
-  if (baselineValue) output += "- Baseline value: " + baselineValue + "\n";
-  if (priorRunCount > 0) output += "- Prior runs: " + priorRunCount + "\n";
-  if (bestRun) output += "- Best run: " + bestRun.id + " (" + bestRun.value + ")\n";
-  output += "\n";
-
-  if (baselineState !== "complete") {
-    output += "**Action required:** Baseline is " + baselineState + ". ";
-    output += "Create or complete `.researchloop/baseline.md` before proceeding with experiments.\n\n";
-  }
-
-  output += "## Available Modes\n\n";
-  output += "### propose (default)\n";
-  output += "Read repo history and optionally search papers to propose 2-4 grounded next experiments.\n\n";
-  output += "### novel\n";
-  output += "Generate 3-5 genuinely different hypotheses with mechanism, why it might work, why it might fail, smallest test, and kill criterion.\n\n";
-  output += "### autonomous\n";
-  output += "Run the full loop (read history, search papers, write notes, choose cheapest meaningful test, run it, record it, compare it) within an agreed time budget. **Requires baseline lock.**\n\n";
-
-  output += "## Next Steps\n\n";
-  output += "Choose a mode and run:\n\n";
-  output += "```bash\n";
-  output += "autoresearch propose --topic \"" + topicText + "\"\n";
-  output += "# OR\n";
-  output += "autoresearch hypothesis --from-runs --topic \"" + topicText + "\"\n";
-  output += "```\n\n";
-
-  if (paperNotes.length > 0) {
-    output += "## Relevant Paper Notes\n";
-    for (const note of paperNotes) {
-      output += "- " + note + "\n";
+  // Generate id for each proposal (content-hashed)
+  function hashId(text) {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
     }
-    output += "\n";
+    return "prop_" + Math.abs(hash).toString(16).padStart(8, "0");
   }
 
-  output += "_Topic intake generated by AutoResearch-AI G28_\n";
+  let count = 0;
+  for (const tpl of available) {
+    if (count >= n) break;
 
+    const id = hashId(tpl.title + Date.now());
+    const bestRun = runs.filter(r => r.status === "completed").sort((a, b) => {
+      if (targetDirection === "higher") return (b.value || 0) - (a.value || 0);
+      return (a.value || 0) - (b.value || 0);
+    })[0];
+
+    proposals.push({
+      id,
+      title: tpl.title,
+      hypothesis: tpl.hypothesis,
+      change: tpl.change,
+      metric: targetMetric,
+      expected_direction: targetDirection,
+      estimated_minutes: tpl.risk === "low" ? 30 : tpl.risk === "medium" ? 120 : 240,
+      est_cost_usd_or_null: null,
+      risk: tpl.risk,
+      priors: bestRun ? [{ type: "run", id: bestRun.id }] : [],
+      kill_criterion: targetMetric + " does not improve by >5% after " + (tpl.risk === "low" ? "1h" : "4h"),
+      mechanism: tpl.mechanism,
+      mode,
+      created_at: new Date().toISOString(),
+    });
+
+    count++;
+  }
+
+  // Output
   if (doWrite) {
-    const topicsDir = path.join(cwd, ".researchloop", "scratchpad", "topics");
-    if (!fs.existsSync(topicsDir)) fs.mkdirSync(topicsDir, { recursive: true });
-    const outPath = path.join(topicsDir, slug + ".md");
-    fs.writeFileSync(outPath, output);
-    console.log("Topic note written to: " + outPath);
-    if (mode === "autonomous" && baselineState !== "complete") {
-      console.log("WARNING: baseline is " + baselineState + " — autonomous mode may not behave correctly.");
+    const proposalsPath = path.join(cwd, ".researchloop", "scratchpad", "proposals.jsonl");
+    const scratchpadDir = path.join(cwd, ".researchloop", "scratchpad");
+    if (!fs.existsSync(scratchpadDir)) fs.mkdirSync(scratchpadDir, { recursive: true });
+    const existingIds = new Set();
+    try {
+      if (fs.existsSync(proposalsPath)) {
+        const existing = fs.readFileSync(proposalsPath, "utf8").split("\n").filter(l => l.trim());
+        for (const line of existing) {
+          try { existingIds.add(JSON.parse(line).id); } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+
+    const filtered = proposals.filter(p => !existingIds.has(p.id));
+    if (filtered.length > 0) {
+      const lines = filtered.map(p => JSON.stringify(p)).join("\n") + "\n";
+      fs.appendFileSync(proposalsPath, lines);
     }
+    console.log("Wrote " + filtered.length + " new proposal(s) to " + proposalsPath);
   } else {
-    process.stdout.write(output);
+    // JSON output
+    process.stdout.write(JSON.stringify(proposals, null, 2));
   }
 }
 
@@ -4011,7 +4051,8 @@ Usage:
   autoresearch init [--agent codex|claude-code|hermes|cursor] [--dir PATH] [--force]
   autoresearch goal [TEXT] [--dir PATH] [--metric NAME] [--direction lower|higher] [--baseline CMD] [--evaluation CMD] [--allowed TEXT] [--forbidden TEXT]
   autoresearch inspect [--dir PATH]
-  autoresearch idea [--dir PATH] [--goal TEXT] [--write]
+  autoresearch idea [--dir PATH]
+  autoresearch propose [--n N] [--write] [--mode propose|novel|autonomous] [--focus hyperparameters|architecture|attention|data] [--dir PATH] [--goal TEXT] [--write]
   autoresearch prompt [--goal TEXT] [--focus hyperparameters|architecture|attention|training-ladder] [--agent NAME]
   autoresearch doctor [--dir PATH] [--python PATH] [--repair-plan]
   autoresearch replay [--dir PATH] [--id RUN_ID]
@@ -4032,7 +4073,6 @@ Usage:
   autoresearch data-fingerprint [--dir PATH]
   autoresearch model-card --id <run-id> [--out FILE.md] [--dir PATH]
   autoresearch tag --id <run-id> [--add TAG] [--remove TAG] [--list] [--dir PATH]\n  autoresearch digest [--since DURATION] [--format text|json|markdown] [--dir PATH]\n  autoresearch param-importance [--metric METRIC] [--format table|json] [--dir PATH]\n  autoresearch suggest [--n N] [--metric METRIC] [--direction higher|lower] [--format text|json] [--dir PATH]
-  autoresearch topic "<text>" [--mode propose|novel|autonomous] [--dir PATH] [--write]
   autoresearch query "<expression>" [--format jsonl|table] [--dir PATH]
   autoresearch --version
 
@@ -4059,6 +4099,8 @@ async function main() {
     cmdInspect();
   } else if (command === "idea") {
     cmdIdea();
+  } else if (command === "propose") {
+    cmdPropose();
   } else if (command === "prompt") {
     cmdPrompt();
   } else if (command === "doctor") {
@@ -4112,8 +4154,6 @@ async function main() {
     cmdParamImportance();
   } else if (command === "suggest") {
     cmdSuggest();
-  } else if (command === "topic") {
-    cmdTopic();
   } else if (command === "query") {
     cmdQuery();
   } else {
