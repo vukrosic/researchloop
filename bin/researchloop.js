@@ -826,12 +826,86 @@ function readGoalSummary(goalFile) {
 
 function cmdDoctor() {
   const cwd = targetDir();
+  const repairPlan = hasFlag("--repair-plan");
   const python = String(option("--python", "python3"));
   const nodeVersion = process.version;
   const npmVersion = run("npm --version", cwd) || "not found";
   const gitVersion = run("git --version", cwd) || "not found";
   const currentEnv = captureEnv(cwd, python);
   const latestRun = readLatestRunRow(cwd);
+
+  if (repairPlan) {
+    const checks = [];
+    const rlDir = path.join(cwd, ".researchloop");
+    const goalFile = path.join(rlDir, "goal.md");
+    const evalFile = path.join(rlDir, "eval.yaml");
+    const safetyFile = path.join(rlDir, "safety.yaml");
+
+    if (!currentEnv.python_version) {
+      checks.push({ priority: 1, check: "Python not found", fix: "Install Python 3.8+: https://python.org/downloads" });
+    }
+    if (!currentEnv.git_sha) {
+      checks.push({ priority: 2, check: "Git not found or not a git repo", fix: "Run: git init && git remote add origin <url>" });
+    }
+    if (!fs.existsSync(goalFile)) {
+      checks.push({ priority: 3, check: "goal.md missing", fix: "Run: autoresearch goal 'Your research goal'" });
+    } else {
+      const goalRaw = fs.readFileSync(goalFile, "utf8");
+      if (!goalRaw.includes("Target Metric:")) {
+        checks.push({ priority: 3, check: "goal.md missing Target Metric", fix: "Add 'Target Metric: metric_name' to goal.md" });
+      }
+      if (!goalRaw.includes("Direction:")) {
+        checks.push({ priority: 3, check: "goal.md missing Direction", fix: "Add 'Direction: higher' or 'Direction: lower' to goal.md" });
+      }
+      if (!goalRaw.includes("## Baseline Command") && !goalRaw.includes("Baseline Command")) {
+        checks.push({ priority: 3, check: "goal.md missing Baseline Command", fix: "Add '## Baseline Command' with your baseline command to goal.md" });
+      }
+    }
+    if (fs.existsSync(evalFile)) {
+      const evalRaw = fs.readFileSync(evalFile, "utf8");
+      if (!evalRaw.includes("metrics:")) {
+        checks.push({ priority: 4, check: "eval.yaml missing metrics section", fix: "Add 'metrics:' with name/regex_or_jsonpath entries to eval.yaml" });
+      }
+      if (!/regex_or_jsonpath:/.test(evalRaw)) {
+        checks.push({ priority: 4, check: "eval.yaml missing regex_or_jsonpath", fix: "Add regex_or_jsonpath entries under each metric in eval.yaml" });
+      }
+    } else {
+      checks.push({ priority: 4, check: "eval.yaml missing", fix: "Create .researchloop/eval.yaml with your metrics and regex patterns" });
+    }
+    const ledgerPath = path.join(rlDir, "scratchpad", "runs.jsonl");
+    if (fs.existsSync(ledgerPath)) {
+      const rows = fs.readFileSync(ledgerPath, "utf8").split("\n").filter(Boolean).map((l) => {
+        try { return JSON.parse(l); } catch { return null; }
+      }).filter(Boolean);
+      const lastRow = rows.length > 0 ? rows[rows.length - 1] : null;
+      if (lastRow && Object.keys(lastRow.metrics || {}).length === 0 && lastRow.value == null) {
+        checks.push({ priority: 5, check: "No metric parsed from last run", fix: "Check that your training script outputs metric in expected format (e.g., val_loss=0.42)" });
+      }
+    }
+    if (!fs.existsSync(safetyFile)) {
+      checks.push({ priority: 6, check: "safety.yaml missing (repo is open-loop)", fix: "Run: autoresearch init --safety to create a safety policy" });
+    }
+    if (!fs.existsSync(rlDir)) {
+      checks.push({ priority: 2, check: ".researchloop/ directory missing", fix: "Run: autoresearch init" });
+    } else if (!fs.existsSync(path.join(rlDir, "scratchpad"))) {
+      checks.push({ priority: 2, check: ".researchloop/scratchpad/ missing", fix: "Run: mkdir -p .researchloop/scratchpad" });
+    }
+
+    if (checks.length === 0) {
+      console.log("No issues found. Your setup looks healthy.");
+      return;
+    }
+    checks.sort((a, b) => a.priority - b.priority);
+    console.log("=== Repair Plan ===");
+    console.log("");
+    for (let i = 0; i < checks.length; i++) {
+      const c = checks[i];
+      console.log((i + 1) + ". [P" + c.priority + "] " + c.check);
+      console.log("   Fix: " + c.fix);
+      console.log("");
+    }
+    return;
+  }
 
   console.log(`cwd: ${cwd}`);
   console.log(`node: ${nodeVersion}`);
@@ -3086,6 +3160,406 @@ function cmdTag() {
   }
 }
 
+function cmdDigest() {
+  const sinceStr = option("--since", "24h");
+  const format = option("--format", "markdown");
+  const cwd = targetDir();
+  const ledgerPath = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+
+  // Parse --since duration
+  const sinceMatch = sinceStr.match(/^(\d+)([hdm])?$/);
+  let sinceMs = 24 * 60 * 60 * 1000; // default: 24h in ms
+  if (sinceMatch) {
+    const val = parseInt(sinceMatch[1], 10);
+    const unit = sinceMatch[2] || "h";
+    if (unit === "h") sinceMs = val * 60 * 60 * 1000;
+    else if (unit === "d") sinceMs = val * 24 * 60 * 60 * 1000;
+    else if (unit === "m") sinceMs = val * 60 * 1000;
+  }
+  const cutoff = Date.now() - sinceMs;
+
+  let runs = [];
+  try {
+    const raw = fs.readFileSync(ledgerPath, "utf8");
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        runs.push(JSON.parse(trimmed));
+      } catch { /* skip */ }
+    }
+  } catch {
+    runs = [];
+  }
+
+  // Filter by timestamp
+  const recent = runs.filter((r) => {
+    if (!r.timestamp) return false;
+    const ts = new Date(r.timestamp).getTime();
+    return ts >= cutoff;
+  });
+
+  if (recent.length === 0) {
+    console.log("No runs in the last " + sinceStr + ".");
+    return;
+  }
+
+  const completed = recent.filter((r) => r.status === "completed" || r.status === "promoted");
+  const failed = recent.filter((r) => r.status === "failed" || r.status === "killed");
+
+  const metrics = recent
+    .map((r) => r.metrics?.value ?? r.value)
+    .filter((v) => v != null && Number.isFinite(v));
+
+  const best = metrics.length ? Math.max(...metrics) : null;
+  const worst = metrics.length ? Math.min(...metrics) : null;
+
+  const wallSecs = recent.reduce((s, r) => s + (r.wall_seconds || 0), 0);
+  const cost = recent.reduce((s, r) => s + (r.est_cost_usd || 0), 0);
+
+  if (format === "json") {
+    const out = {
+      period: sinceStr,
+      totalRuns: recent.length,
+      completed: completed.length,
+      failed: failed.length,
+      bestMetric: best,
+      worstMetric: worst,
+      totalWallSeconds: wallSecs,
+      totalEstimatedCost: cost > 0 ? cost : null,
+    };
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    // Markdown
+    const lines = [
+      "# Experiment Digest — last " + sinceStr,
+      "",
+      "| Metric | Value |",
+      "| --- | --- |",
+      "| Runs total | " + recent.length + " |",
+      "| Completed | " + completed.length + " |",
+      "| Failed | " + failed.length + " |",
+      "| Best metric | " + (best != null ? best.toFixed(4) : "—") + " |",
+      "| Worst metric | " + (worst != null ? worst.toFixed(4) : "—") + " |",
+      "| Total wall time | " + wallSecs.toFixed(0) + "s |",
+      "| Total est. cost | " + (cost > 0 ? "$" + cost.toFixed(2) : "—") + " |",
+    ];
+    console.log(lines.join("\n"));
+  }
+}
+
+function cmdParamImportance() {
+  const metric = option("--metric", "value");
+  const format = option("--format", "table");
+  const cwd = targetDir();
+  const ledgerPath = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+
+  let runs = [];
+  try {
+    const raw = fs.readFileSync(ledgerPath, "utf8");
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        runs.push(JSON.parse(trimmed));
+      } catch { /* skip */ }
+    }
+  } catch {
+    runs = [];
+  }
+
+  // Filter to runs with the target metric
+  const valid = runs.filter((r) => {
+    const val = r.metrics?.[metric] ?? r.value;
+    return r.status === "completed" || r.status === "promoted";
+  });
+
+  if (valid.length < 5) {
+    console.log("Insufficient data (" + valid.length + " runs, need at least 5).");
+    return;
+  }
+
+  // Collect all param keys
+  const paramKeys = new Set();
+  for (const r of valid) {
+    if (r.params && typeof r.params === "object") {
+      for (const k of Object.keys(r.params)) {
+        paramKeys.add(k);
+      }
+    }
+  }
+
+  // Separate numeric and categorical params
+  const numericParams = [];
+  const categoricalParams = [];
+  for (const key of paramKeys) {
+    const vals = valid.map((r) => r.params?.[key]);
+    const isNumeric = vals.every((v) => v == null || typeof v === "number");
+    if (isNumeric) numericParams.push(key);
+    else categoricalParams.push(key);
+  }
+
+  // Pearson correlation for numeric params
+  function pearsonr(xs, ys) {
+    const n = xs.length;
+    if (n === 0) return 0;
+    const xMean = xs.reduce((s, v) => s + v, 0) / n;
+    const yMean = ys.reduce((s, v) => s + v, 0) / n;
+    let num = 0, denX = 0, denY = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = xs[i] - xMean;
+      const dy = ys[i] - yMean;
+      num += dx * dy;
+      denX += dx * dx;
+      denY += dy * dy;
+    }
+    const den = Math.sqrt(denX * denY);
+    return den === 0 ? 0 : num / den;
+  }
+
+  // ANOVA-style for categorical params
+  function anovaSummary(key) {
+    const buckets = {};
+    for (const r of valid) {
+      const cat = String(r.params?.[key] ?? "null");
+      if (!buckets[cat]) buckets[cat] = [];
+      const val = r.metrics?.[metric] ?? r.value;
+      if (val != null) buckets[cat].push(val);
+    }
+    return Object.entries(buckets).map(([cat, vals]) => {
+      const mean = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+      const spread = vals.length > 1
+        ? Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length)
+        : 0;
+      return { category: cat, count: vals.length, mean, spread };
+    });
+  }
+
+  const metricVals = valid.map((r) => r.metrics?.[metric] ?? r.value);
+  const numericResults = numericParams.map((key) => {
+    const xs = valid.map((r) => r.params?.[key] ?? 0);
+    const r = pearsonr(xs, metricVals);
+    return { param: key, correlation: r, type: "numeric" };
+  });
+
+  const categoricalResults = categoricalParams.map((key) => {
+    const summary = anovaSummary(key);
+    const grandMean = metricVals.filter((v) => v != null).reduce((s, v) => s + v, 0)
+      / metricVals.filter((v) => v != null).length;
+    const betweenVar = summary.reduce((s, { mean, count }) => {
+      if (mean == null) return s;
+      return s + count * (mean - grandMean) ** 2;
+    }, 0) / valid.length;
+    const totalVar = metricVals.filter((v) => v != null).reduce((s, v) => s + (v - grandMean) ** 2, 0)
+      / metricVals.filter((v) => v != null).length;
+    const etaSq = totalVar === 0 ? 0 : betweenVar / totalVar;
+    return { param: key, etaSquared: etaSq, type: "categorical", summary };
+  });
+
+  // Sort numeric by |correlation| desc
+  numericResults.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
+
+  if (format === "json") {
+    const out = { metric, nRuns: valid.length, numeric: numericResults, categorical: categoricalResults };
+    console.log(JSON.stringify(out, null, 2));
+    return;
+  }
+
+  // Table output
+  const lines = ["# Parameter Importance — " + metric, ""];
+  lines.push("**Runs analyzed:** " + valid.length + " | **Metric:** " + metric + "");
+  lines.push("");
+
+  if (numericParams.length) {
+    lines.push("## Numeric Parameters (Pearson r)");
+    lines.push("");
+    lines.push("| Parameter | r | |r| |");
+    lines.push("| --- | ---: | ---: |");
+    for (const { param, correlation } of numericResults) {
+      lines.push("| " + param + " | " + correlation.toFixed(4) + " | " + Math.abs(correlation).toFixed(4) + " |");
+    }
+    lines.push("");
+  }
+
+  if (categoricalParams.length) {
+    lines.push("## Categorical Parameters (eta^2)");
+    lines.push("");
+    lines.push("| Parameter | eta^2 | Categories |");
+    lines.push("| --- | ---: | --- |");
+    for (const { param, etaSquared, summary } of categoricalResults) {
+      const cats = summary.map((s) => s.category + " (" + s.count + ")").join(", ");
+      lines.push("| " + param + " | " + etaSquared.toFixed(4) + " | " + cats + " |");
+    }
+    lines.push("");
+    for (const { param, summary } of categoricalResults) {
+      lines.push("### " + param + "");
+      lines.push("");
+      lines.push("| Category | Count | Mean " + metric + " | Spread |");
+      lines.push("| --- | ---: | ---: | ---: |");
+      for (const { category, count, mean, spread } of summary) {
+        lines.push("| " + category + " | " + count + " | " + (mean != null ? mean.toFixed(4) : "—") + " | " + (spread != null ? spread.toFixed(4) : "—") + " |");
+      }
+      lines.push("");
+    }
+  }
+
+  if (numericParams.length === 0 && categoricalParams.length === 0) {
+    lines.push("No parameter fields found in completed runs.");
+  }
+
+  console.log(lines.join("\n"));
+}
+
+function cmdSuggest() {
+  const metric = option("--metric", "value");
+  const direction = option("--direction", "higher");
+  const n = parseInt(option("--n", "3"), 10);
+  const fmt = option("--format", "text");
+  const cwd = targetDir();
+  const ledgerPath = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+
+  let runs = [];
+  try {
+    const raw = fs.readFileSync(ledgerPath, "utf8");
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        runs.push(JSON.parse(trimmed));
+      } catch { /* skip */ }
+    }
+  } catch {
+    runs = [];
+  }
+
+  const valid = runs.filter((r) => {
+    const val = r.metrics?.[metric] ?? r.value;
+    return (r.status === "completed" || r.status === "promoted") && val != null && Number.isFinite(val);
+  });
+
+  if (valid.length < 3) {
+    console.log("Not enough data to suggest experiments (need at least 3 runs).");
+    return;
+  }
+
+  const paramKeys = new Set();
+  for (const r of valid) {
+    if (r.params && typeof r.params === "object") {
+      for (const k of Object.keys(r.params)) paramKeys.add(k);
+    }
+  }
+
+  const isLower = direction === "lower";
+  const dirFactor = isLower ? 1 : -1;
+  valid.sort((a, b) => {
+    const aV = a.metrics?.[metric] ?? a.value;
+    const bV = b.metrics?.[metric] ?? b.value;
+    return (aV - bV) * dirFactor;
+  });
+  const bestRun = valid[0];
+  const bestVal = bestRun.metrics?.[metric] ?? bestRun.value;
+
+  const numericKeys = [];
+  const catKeys = [];
+  for (const k of paramKeys) {
+    const vals = valid.map((r) => r.params?.[k]);
+    if (vals.every((v) => v == null || typeof v === "number")) numericKeys.push(k);
+    else catKeys.push(k);
+  }
+
+  const suggestions = [];
+
+  for (const key of numericKeys) {
+    const xs = valid.map((r) => r.params?.[key] ?? 0);
+    const ys = valid.map((r) => r.metrics?.[metric] ?? r.value);
+
+    const sortedYs = [...ys].sort((a, b) => (a - b) * dirFactor);
+    const cutoff = sortedYs[Math.min(Math.ceil(xs.length * 0.3), sortedYs.length - 1)];
+    let num = 0, den = 0;
+    for (let i = 0; i < xs.length; i++) {
+      const w = ys[i] <= cutoff ? 1 : 0.1;
+      num += xs[i] * w;
+      den += w;
+    }
+    const weightedCenter = den > 0 ? num / den : xs.reduce((s, v) => s + v, 0) / xs.length;
+
+    const xMin = Math.min(...xs);
+    const xMax = Math.max(...xs);
+    const xRange = xMax - xMin;
+
+    const step = xRange > 0 ? (weightedCenter - (xMin + xMax) / 2) * 0.5 : weightedCenter * 0.2;
+    const suggested = Math.max(xMin, Math.min(xMax, weightedCenter + step));
+    const confidence = xRange > 0 ? Math.min(0.95, 1 - Math.abs(step) / (xRange + 1e-10)) : 0.3;
+
+    suggestions.push({
+      param: key,
+      suggested,
+      testedRange: [xMin, xMax],
+      confidence: Math.max(0.1, confidence),
+      reason: "weighted center of top 30% runs is " + weightedCenter.toFixed(4) + ", suggest exploring toward " + suggested.toFixed(4),
+    });
+  }
+
+  for (const key of catKeys) {
+    const seen = new Set(valid.map((r) => String(r.params?.[key] ?? "null")));
+    const goalFile = path.join(cwd, ".researchloop", "goal.md");
+    let candidates = [];
+    try {
+      const goalRaw = fs.readFileSync(goalFile, "utf8");
+      const sweepMatch = goalRaw.match(/params:[\s\S]*?(?=^\w|\n#|$)/mi);
+      if (sweepMatch) {
+        const lines = sweepMatch[0].split("\n");
+        for (const line of lines) {
+          const m = line.match(/^-\s*(\w+):\s*\[/);
+          if (m) candidates.push(m[1]);
+        }
+      }
+    } catch { /* no goal.yaml */ }
+
+    if (candidates.length === 0) candidates = Array.from(seen);
+    for (const cand of candidates) {
+      if (!seen.has(cand)) {
+        suggestions.push({
+          param: key,
+          suggested: cand,
+          testedRange: null,
+          confidence: 0.4,
+          reason: "categorical '" + key + "' has no run with value '" + cand + "' yet",
+        });
+      }
+    }
+  }
+
+  suggestions.sort((a, b) => b.confidence - a.confidence);
+  const top = suggestions.slice(0, n);
+
+  if (fmt === "json") {
+    console.log(JSON.stringify({ metric, direction, bestRun: bestRun.id, bestValue: bestVal, suggestions: top }, null, 2));
+    return;
+  }
+
+  const lines = [
+    "# Auto-Suggest — " + metric + " (" + direction + ")",
+    "",
+    "**Best run:** " + bestRun.id + " | **" + metric + ":** " + (bestVal != null ? bestVal.toFixed(4) : "—"),
+    "",
+    "| # | Parameter | Suggested | Confidence | Reason |",
+    "| ---: | --- | ---: | ---: | --- |",
+  ];
+
+  top.forEach((s, i) => {
+    const suggested = s.testedRange != null ? Number(s.suggested).toFixed(6) : s.suggested;
+    lines.push("| " + (i + 1) + " | " + s.param + " | " + suggested + " | " + (s.confidence * 100).toFixed(0) + "% | " + s.reason + " |");
+  });
+
+  if (top.length === 0) {
+    lines.push("| | | | | |");
+    lines.push("No specific suggestions yet. Try running more experiments first.");
+  }
+
+  console.log(lines.join("\n"));
+}
+
 function cmdHelp() {
   console.log(`AutoResearch-AI ${packageVersion()}
 
@@ -3095,7 +3569,7 @@ Usage:
   autoresearch inspect [--dir PATH]
   autoresearch idea [--dir PATH] [--goal TEXT] [--write]
   autoresearch prompt [--goal TEXT] [--focus hyperparameters|architecture|attention|training-ladder] [--agent NAME]
-  autoresearch doctor [--dir PATH] [--python PATH]
+  autoresearch doctor [--dir PATH] [--python PATH] [--repair-plan]
   autoresearch replay [--dir PATH] [--id RUN_ID]
   autoresearch record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]    (manual escape hatch; prefer 'run')
   autoresearch run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
@@ -3111,7 +3585,7 @@ Usage:
   autoresearch prune [--older-than Nd] [--status STATUS] [--dry-run] [--no-keep-promoted] [--dir PATH]
   autoresearch data-fingerprint [--dir PATH]
   autoresearch model-card --id <run-id> [--out FILE.md] [--dir PATH]
-  autoresearch tag --id <run-id> [--add TAG] [--remove TAG] [--list] [--dir PATH]
+  autoresearch tag --id <run-id> [--add TAG] [--remove TAG] [--list] [--dir PATH]\n  autoresearch digest [--since DURATION] [--format text|json|markdown] [--dir PATH]\n  autoresearch param-importance [--metric METRIC] [--format table|json] [--dir PATH]\n  autoresearch suggest [--n N] [--metric METRIC] [--direction higher|lower] [--format text|json] [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -3173,6 +3647,12 @@ async function main() {
     cmdTag();
   } else if (command === "data-fingerprint") {
     cmdDataFingerprint();
+  } else if (command === "digest") {
+    cmdDigest();
+  } else if (command === "param-importance") {
+    cmdParamImportance();
+  } else if (command === "suggest") {
+    cmdSuggest();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
