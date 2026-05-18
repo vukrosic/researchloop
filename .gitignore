@@ -3,3 +3,5 @@ node_modules/
 competitors/hive/
 *.log
 *.tgz
+.agent-worktrees/
+researchloop-dev/agent-runner/__pycache__/
