@@ -57,6 +57,7 @@ function positionalText(excludedFlags = []) {
   }
   const skip = new Set(excludedFlags);
   const parts = [];
+  let started = false;
   for (let i = idx + 1; i < args.length; i += 1) {
     const arg = args[i];
     if (skip.has(arg)) {
@@ -64,8 +65,10 @@ function positionalText(excludedFlags = []) {
       continue;
     }
     if (arg.startsWith("-")) {
+      if (started) break;
       continue;
     }
+    started = true;
     parts.push(arg);
   }
   return parts.join(" ").trim();
@@ -3560,6 +3563,148 @@ function cmdSuggest() {
   console.log(lines.join("\n"));
 }
 
+function cmdQuery() {
+  const rawExpr = positionalText();
+  const fmt = option("--format", "table");
+  const cwd = targetDir();
+  const ledgerPath = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+
+  let runs = [];
+  try {
+    const raw = fs.readFileSync(ledgerPath, "utf8");
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        runs.push(JSON.parse(trimmed));
+      } catch { /* skip */ }
+    }
+  } catch {
+    runs = [];
+  }
+
+  if (!rawExpr) {
+    console.error('Usage: autoresearch query "<expression>" [--format jsonl|table] [--dir PATH]');
+    process.exitCode = 1;
+    return;
+  }
+
+  function getNestedValue(obj, path) {
+    return path.split(".").reduce((o, k) => (o && o[k] !== undefined ? o[k] : null), obj);
+  }
+
+  function evaluatePredicate(lhs, op, rhs) {
+    if (lhs === null || lhs === undefined) return false;
+    switch (op) {
+      case "=": return String(lhs) === String(rhs);
+      case "!=": return String(lhs) !== String(rhs);
+      case "<": return Number(lhs) < Number(rhs);
+      case "<=": return Number(lhs) <= Number(rhs);
+      case ">": return Number(lhs) > Number(rhs);
+      case ">=": return Number(lhs) >= Number(rhs);
+      case "contains": return String(lhs).toLowerCase().includes(String(rhs).toLowerCase());
+      case "between": {
+        const m = String(rhs).match(/^(.+)\.\.(.+)$/);
+        if (!m) return false;
+        const v = Number(lhs);
+        return v >= Number(m[1]) && v <= Number(m[2]);
+      }
+      default: return false;
+    }
+  }
+
+  const predicates = [];
+  let sortField = null;
+  let sortDir = "asc";
+  let limitCount = 100;
+
+  const tokens = rawExpr.trim().split(/\s+/);
+  let i = 0;
+
+  if (tokens[i] === "where") {
+    i++;
+    while (i < tokens.length) {
+      if (tokens[i] === "sort-by") {
+        i++;
+        if (i >= tokens.length) { console.error("query: sort-by requires a field"); process.exitCode = 1; return; }
+        sortField = tokens[i];
+        i++;
+        if (i < tokens.length && (tokens[i] === "asc" || tokens[i] === "desc")) {
+          sortDir = tokens[i]; i++;
+        }
+        continue;
+      } else if (tokens[i] === "limit") {
+        i++;
+        if (i >= tokens.length) { console.error("query: limit requires a number"); process.exitCode = 1; return; }
+        limitCount = parseInt(tokens[i], 10);
+        i++;
+        continue;
+      }
+      if (i + 2 >= tokens.length) { console.error("query: predicate requires field, operator, value"); process.exitCode = 1; return; }
+      const field = tokens[i]; i++;
+      const op = tokens[i]; i++;
+      const value = tokens[i]; i++;
+      const validOps = ["=", "!=", "<", "<=", ">", ">=", "contains", "between"];
+      if (!validOps.includes(op)) { console.error("query: unknown operator " + op); process.exitCode = 1; return; }
+      predicates.push({ field, op, value });
+      if (tokens[i] === "and") { i++; continue; }
+    }
+  } else {
+    console.error("query: expression must start with \"where\"");
+    process.exitCode = 1;
+    return;
+  }
+
+  let result = runs.filter((row) => {
+    return predicates.every(({ field, op, value }) => {
+      const v = getNestedValue(row, field);
+      return evaluatePredicate(v, op, value);
+    });
+  });
+
+  if (sortField) {
+    result.sort((a, b) => {
+      const aV = getNestedValue(a, sortField);
+      const bV = getNestedValue(b, sortField);
+      const aN = Number(aV), bN = Number(bV);
+      const cmp = isNaN(aN) || isNaN(bN) ? String(aV).localeCompare(String(bV)) : aN - bN;
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+  }
+
+  result = result.slice(0, limitCount);
+
+  if (fmt === "jsonl") {
+    for (const row of result) {
+      process.stdout.write(JSON.stringify(row) + "\n");
+    }
+    return;
+  }
+
+  if (result.length === 0) {
+    console.log("(no rows match)");
+    return;
+  }
+
+  const allKeys = new Set(["id", "status", "timestamp", "value"]);
+  for (const row of result) {
+    if (row.metrics) for (const k of Object.keys(row.metrics)) allKeys.add("metrics." + k);
+    if (row.params) for (const k of Object.keys(row.params)) allKeys.add("params." + k);
+  }
+  const cols = Array.from(allKeys);
+
+  const lines = [];
+  lines.push("| " + cols.join(" | ") + " |");
+  lines.push("| " + cols.map(() => "---").join(" | ") + " |");
+  for (const row of result) {
+    lines.push("| " + cols.map((c) => {
+      const v = c === "id" ? row.id : c === "status" ? row.status : c === "timestamp" ? (row.timestamp || "") : getNestedValue(row, c);
+      return v != null ? String(v) : "";
+    }).join(" | ") + " |");
+  }
+  console.log(lines.join("\n"));
+}
+
 function cmdHelp() {
   console.log(`AutoResearch-AI ${packageVersion()}
 
@@ -3586,6 +3731,7 @@ Usage:
   autoresearch data-fingerprint [--dir PATH]
   autoresearch model-card --id <run-id> [--out FILE.md] [--dir PATH]
   autoresearch tag --id <run-id> [--add TAG] [--remove TAG] [--list] [--dir PATH]\n  autoresearch digest [--since DURATION] [--format text|json|markdown] [--dir PATH]\n  autoresearch param-importance [--metric METRIC] [--format table|json] [--dir PATH]\n  autoresearch suggest [--n N] [--metric METRIC] [--direction higher|lower] [--format text|json] [--dir PATH]
+  autoresearch query "<expression>" [--format jsonl|table] [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -3653,6 +3799,8 @@ async function main() {
     cmdParamImportance();
   } else if (command === "suggest") {
     cmdSuggest();
+  } else if (command === "query") {
+    cmdQuery();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
