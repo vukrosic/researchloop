@@ -24,9 +24,15 @@ set -euo pipefail
 IMPLEMENTER="${IMPLEMENTER:-codex}"
 REVIEWER="${REVIEWER:-claude}"
 CODEX_BIN="${CODEX_BIN:-codex}"
+CODEX_MODEL="${CODEX_MODEL:-}"      # if set, passed as -m to codex exec (implementer + reviewer)
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 DRY_RUN="${DRY_RUN:-0}"
 AGENT_TIMEOUT="${AGENT_TIMEOUT:-1800}"
+
+# Optional model flag, expanded into the codex invocations below. Empty when
+# CODEX_MODEL is unset, so codex falls back to its config.toml default.
+codex_model_arg=""
+[ -n "$CODEX_MODEL" ] && codex_model_arg="-m $CODEX_MODEL"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 RUNNER_DIR="$REPO_ROOT/researchloop-dev/agent-runner"
@@ -150,6 +156,7 @@ PYEOF
       run_timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
         --cd "$worktree" \
         $codex_perm \
+        $codex_model_arg \
         --output-last-message "$STATE_DIR/implementer-$issue_num.final.txt" \
         "$(cat "$prompt_file")" \
         2>&1 | tee "$STATE_DIR/implementer-$issue_num.log"
@@ -210,6 +217,7 @@ PYEOF
       run_timeout "$AGENT_TIMEOUT" "$CODEX_BIN" exec \
         --sandbox workspace-write \
         --skip-git-repo-check \
+        $codex_model_arg \
         "$(cat "$prompt_file")" \
         > "$review_out"
       ;;
