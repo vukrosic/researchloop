@@ -8,12 +8,12 @@ Source-of-truth for the GitHub issue bodies. When seeding a new wave of contribu
 |---|---|---|---|---|---|
 | [1](https://github.com/vukrosic/autoresearch-ai/issues/1) | G14 | Environment capture per run | S | 0 | good first issue, tier-0 |
 | [2](https://github.com/vukrosic/autoresearch-ai/issues/2) | G25 | Agent command sandbox / allowlist | S–M | 0 | good first issue, tier-0, security |
-| [3](https://github.com/vukrosic/autoresearch-ai/issues/3) | G26 | autoresearch baseline-status | S | 1 | good first issue, tier-1 |
-| [4](https://github.com/vukrosic/autoresearch-ai/issues/4) | G31 | autoresearch doctor --repair-plan | S | 3 | good first issue, tier-3 |
+| [3](https://github.com/vukrosic/autoresearch-ai/issues/3) | G26 | autoresearch baseline-status | S | 1 | good first issue, tier-1, shipped |
+| [4](https://github.com/vukrosic/autoresearch-ai/issues/4) | G31 | autoresearch doctor --repair-plan | S | 3 | good first issue, tier-3, shipped |
 | [8](https://github.com/vukrosic/autoresearch-ai/issues/8) | G04 | Pluggable evaluation runner (eval.yaml schema) | M | 2 | keystone, tier-2 |
 | [9](https://github.com/vukrosic/autoresearch-ai/issues/9) | G07 | Sweep generator | M | 4 | tier-4 |
 | [10](https://github.com/vukrosic/autoresearch-ai/issues/10) | G18 | Worker daemon / task queue | M | 4 | tier-4 |
-| [11](https://github.com/vukrosic/autoresearch-ai/issues/11) | G13 | autoresearch query over runs.jsonl | M | 4 | tier-4 |
+| [11](https://github.com/vukrosic/autoresearch-ai/issues/11) | G13 | autoresearch query over runs.jsonl | M | 4 | tier-4, shipped |
 | [12](https://github.com/vukrosic/autoresearch-ai/issues/12) | G23 | Cost and wall-clock accounting | S | 5 | good first issue, tier-5 |
 | [13](https://github.com/vukrosic/autoresearch-ai/issues/13) | G24 | Slack / webhook notifications | S | 6 | good first issue, tier-6 |
 
