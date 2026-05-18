@@ -14,7 +14,7 @@ Source-of-truth for the GitHub issue bodies. When seeding a new wave of contribu
 | [9](https://github.com/vukrosic/autoresearch-ai/issues/9) | G07 | Sweep generator | M | 4 | tier-4 |
 | [10](https://github.com/vukrosic/autoresearch-ai/issues/10) | G18 | Worker daemon / task queue | M | 4 | tier-4 |
 | [11](https://github.com/vukrosic/autoresearch-ai/issues/11) | G13 | autoresearch query over runs.jsonl | M | 4 | tier-4, shipped |
-| [12](https://github.com/vukrosic/autoresearch-ai/issues/12) | G23 | Cost and wall-clock accounting | S | 5 | good first issue, tier-5 |
+| [12](https://github.com/vukrosic/autoresearch-ai/issues/12) | G23 | Cost and wall-clock accounting | S | 5 | good first issue, tier-5, shipped |
 | [13](https://github.com/vukrosic/autoresearch-ai/issues/13) | G24 | Slack / webhook notifications | S | 6 | good first issue, tier-6 |
 
 All use the **first-PR-wins** claim flow — see [CONTRIBUTING.md](../CONTRIBUTING.md#the-claim-flow-first-pr-wins).
