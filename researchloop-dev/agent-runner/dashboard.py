@@ -95,6 +95,10 @@ section h2 button.on{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 .issue:hover .ttl .ext{opacity:1;}
 .issue .ttl .ext:hover{color:#58a6ff;}
 .issue.open .ttl .title-text{white-space:normal;}
+.issue .summary,.pr .summary{margin:4px 0 6px;color:#8b949e;font-size:11px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.issue .meta,.pr .meta,.session .meta,.activity-item .meta{font-size:10px;color:#6e7681;margin-bottom:6px;}
+.issue .suggested,.pr .checks,.session .status,.activity-item .meta-line{font-size:10px;color:#6e7681;margin-bottom:6px;}
+.issue .suggested .lbl{background:#16233a;color:#79c0ff;}
 .issue .body{display:none;margin:6px 0 8px 16px;padding:8px 10px;background:#0d1117;border-left:2px solid #30363d;border-radius:0 3px 3px 0;font-size:11px;color:#c9d1d9;line-height:1.5;max-height:340px;overflow-y:auto;}
 .issue.open .body{display:block;}
 .issue .body pre{background:#161b22;padding:6px 8px;border-radius:3px;overflow-x:auto;font-size:10px;margin:4px 0;}
@@ -125,6 +129,9 @@ section h2 button.on{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 .pr .badges .b.ci-pass{background:#0e3a1a;color:#3fb950;}
 .pr .badges .b.ci-fail{background:#4a0e0e;color:#ff7b72;}
 .pr .badges .b.ci-pending{background:#3a2f0e;color:#d29922;}
+.pr .badges .b.ready{background:#0e3a1a;color:#56d364;}
+.pr .checks .fail{color:#ff7b72;}
+.pr .checks .pending{color:#d29922;}
 .pr button.merge{background:#1a3a1a;color:#56d364;border-color:#234a23;}
 .pr button.merge:hover:not(:disabled){background:#0e6e0e;color:#fff;border-color:#0e6e0e;}
 .pr button.review{background:#1a1a3a;color:#79c0ff;border-color:#23234a;}
@@ -133,8 +140,22 @@ section h2 button.on{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 .pr button.review.done:hover:not(:disabled){background:#21262d;color:#8b949e;border-color:#30363d;}
 .pr button.merge.interactive{background:#1a3a2a;color:#56d364;border-color:#234a32;}
 .pr button.merge.interactive:hover:not(:disabled){background:#0e6e3e;color:#fff;border-color:#0e6e3e;}
+.pr button.fixci{background:#3a251a;color:#f2cc60;border-color:#5a3826;}
+.pr button.fixci:hover:not(:disabled){background:#7a4d2f;color:#fff;border-color:#7a4d2f;}
 .pr a.reviewed{display:inline-block;margin-left:6px;padding:0 5px;border-radius:8px;background:#21262d;color:#7d8590;font-size:10px;text-decoration:none;border:1px solid #30363d;vertical-align:1px;}
 .pr a.reviewed:hover{background:#2d333b;color:#c9d1d9;border-color:#58a6ff;}
+aside .session{padding:8px 18px;font-size:12px;border-bottom:1px solid #21262d;}
+aside .session .title{display:flex;justify-content:space-between;gap:8px;align-items:baseline;color:#c9d1d9;}
+aside .session .title .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+aside .session .idle{color:#d29922;font-size:10px;flex-shrink:0;}
+aside .session .meta-line{font-size:10px;color:#6e7681;margin-top:2px;word-break:break-all;}
+aside .session button{background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;font-family:inherit;margin-top:4px;}
+aside .session button:hover{background:#1f6feb;color:#fff;border-color:#1f6feb;}
+aside .activity-item{padding:8px 18px;font-size:12px;border-bottom:1px solid #21262d;}
+aside .activity-item .head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
+aside .activity-item .kind{font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:0.08em;flex-shrink:0;}
+aside .activity-item .title{color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+aside .activity-item .meta-line{font-size:10px;color:#6e7681;margin-top:2px;}
 aside h2 .hdr-btn{float:right;background:#0d1117;color:#8b949e;border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:11px;font-family:inherit;cursor:pointer;margin-left:6px;font-weight:normal;}
 aside h2 .hdr-btn:hover{color:#c9d1d9;border-color:#58a6ff;}
 #pr-bar{padding:6px 12px;background:#0d1117;border-bottom:1px solid #21262d;font-size:11px;color:#8b949e;display:none;}
@@ -148,6 +169,19 @@ aside h2 .hdr-btn:hover{color:#c9d1d9;border-color:#58a6ff;}
 #toast.ok{border-color:#3fb950;color:#56d364;}
 #tip{position:fixed;background:#1f2428;color:#f0f6fc;padding:6px 10px;border-radius:5px;font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;border:1px solid #30363d;pointer-events:none;display:none;z-index:10000;max-width:320px;white-space:normal;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.12s ease;}
 #tip.show{opacity:1;}
+.approval-item{padding:10px 18px;border-bottom:1px solid #21262d;font-size:12px;}
+.approval-item .head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
+.approval-item .kind{font-size:10px;color:#d29922;text-transform:uppercase;letter-spacing:0.08em;flex-shrink:0;}
+.approval-item .desc{color:#c9d1d9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.approval-item .meta-line{font-size:10px;color:#6e7681;margin-top:2px;word-break:break-all;}
+.approval-item .cmd{font-size:11px;color:#8b949e;background:#161b22;padding:4px 8px;border-radius:3px;margin:4px 0;overflow-x:auto;}
+.approval-item .row{display:flex;gap:6px;margin-top:6px;}
+.approval-item button{background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px;font-family:inherit;flex:1;}
+.approval-item button:hover:not(:disabled){background:#1f6feb;color:#fff;border-color:#1f6feb;}
+.approval-item button.approve{background:#1a3a1a;color:#56d364;border-color:#234a23;}
+.approval-item button.approve:hover:not(:disabled){background:#0e6e0e;color:#fff;border-color:#0e6e0e;}
+.approval-item button.reject{background:#4a0e0e;color:#ff7b72;border-color:#5a1a1a;}
+.approval-item button.reject:hover:not(:disabled){background:#8a2020;color:#fff;border-color:#8a2020;}
 </style></head>
 <body>
 <header>
@@ -160,6 +194,7 @@ aside h2 .hdr-btn:hover{color:#c9d1d9;border-color:#58a6ff;}
   <aside>
     <h2>Issues <span class="count" id="issueCount"></span>
       <button class="hdr-btn" onclick="proposeIssue()" title="Open an interactive codex --yolo session that drafts a new agent-feature issue body (Researcher line, Demo, Acceptance, Anti-features, Files). When codex exits, the shell stays open with a ready-to-run gh issue create command.">📝 propose</button>
+      <button class="hdr-btn" onclick="batchClaimNext()" title="Launch the next few claim-next issues as issue shells, one after another, so you can fan out work fast.">↧ batch</button>
     </h2>
     <div class="filters" id="filters">
       <button data-f="all" class="on" title="All open issues, including validated, in-progress, and parked ones.">all</button>
@@ -171,15 +206,23 @@ aside h2 .hdr-btn:hover{color:#c9d1d9;border-color:#58a6ff;}
     <div id="issues"><div class="empty">loading…</div></div>
     <h2>Open PRs <span class="count" id="prCount"></span></h2>
     <div id="prs"><div class="empty">loading…</div></div>
+    <h2>Needs me <span class="count" id="needsCount"></span></h2>
+    <div id="needsme"><div class="empty">waiting for an idle codex session…</div></div>
     <h2>Live terminals</h2>
     <div id="ptys"><div class="empty">no terminals · click + new shell</div></div>
-    <h2>Active worktrees</h2>
+    <h2>Active worktrees <span class="count" id="worktreeCount"></span>
+      <button class="hdr-btn" onclick="pruneMergedWorktrees()" title="Remove any clean merged worktrees while keeping the branches for later restoration.">🧹 prune merged</button>
+    </h2>
     <div id="worktrees"><div class="empty">none</div></div>
+    <h2>Activity <span class="count" id="activityCount"></span></h2>
+    <div id="activity"><div class="empty">nothing recent yet</div></div>
     <h2>State files
       <button class="hdr-btn" onclick="cleanupState(true)" title="Dry-run: list state files older than 7 days that the cleanup would remove. Nothing is deleted.">🧹 audit</button>
       <button class="hdr-btn" onclick="cleanupState(false)" title="Delete state files older than 7 days (implementer/orchestrator logs, prompts, diffs, drafts). Worktrees and the .gitignore are never touched.">🧹 prune</button>
     </h2>
     <div id="files"><div class="empty">scanning…</div></div>
+    <h2>Pending Approvals <span class="count" id="approvalCount"></span></h2>
+    <div id="approvals"><div class="empty">no pending approvals</div></div>
   </aside>
   <div id="toast"></div>
   <div id="tip"></div>
@@ -236,6 +279,10 @@ let pollTimer = null;
 let replayMode = false;
 let ptyAbort = null;
 let ptyStreamGen = 0;  // bumped on every selectPty to abort stale loops
+let allPtys = [];
+let allWorktrees = [];
+let allPRs = [];
+let idleState = new Map();   // sid -> {lastOutput, notified}
 
 function sendResize() {
   if (!view || view.kind !== 'pty' || !termAttached) return;
@@ -246,6 +293,20 @@ function sendResize() {
 
 function fmtSize(n){if(n<1024)return n+'B';if(n<1024*1024)return (n/1024).toFixed(1)+'K';return (n/1048576).toFixed(1)+'M';}
 function fmtTime(s){const d=new Date(s*1000);return d.toLocaleTimeString();}
+function fmtWhen(ts){ const d = ts ? new Date(ts) : null; return d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : ''; }
+function fmtAgo(ts) {
+  const d = ts ? new Date(ts) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  let s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60); if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60); if (h < 24) return h + 'h';
+  const d2 = Math.floor(h / 24); return d2 + 'd';
+}
+function fmtIdle(ts) {
+  const age = fmtAgo(ts);
+  return age ? `idle ${age}` : '';
+}
 
 async function listFiles() {
   try {
@@ -269,15 +330,92 @@ async function listWorktrees() {
     const r = await fetch('/api/worktrees');
     const data = await r.json();
     const el = document.getElementById('worktrees');
+    allWorktrees = data.worktrees || [];
+    const mergeCandidates = allWorktrees.filter(w => w.status === 'merge candidate').length;
+    document.getElementById('worktreeCount').textContent = `${mergeCandidates} merge candidate${mergeCandidates === 1 ? '' : 's'}`;
     const runningSet = new Set((data.running || []).filter(r => r.active).map(r => r.worktree));
-    if (!data.worktrees.length) { el.innerHTML = '<div class="empty">none</div>'; }
+    if (!allWorktrees.length) { el.innerHTML = '<div class="empty">none</div>'; }
     else {
-      el.innerHTML = data.worktrees.map(w => {
+      el.innerHTML = allWorktrees.map(w => {
         const safe = w.name.replace(/'/g, "\\'");
-        return `<div class="worktree ${runningSet.has(w.name) ? 'live' : ''}"><div class="name">${w.name}</div><div class="commits">${w.commits || 'no commits yet'} · ${w.dirty ? 'uncommitted edits' : 'clean'}${runningSet.has(w.name) ? ' · agent active' : ''}</div><button onclick="openWorktreeShell('${safe}')" title="Open an interactive shell in this worktree">🖥️ open shell</button></div>`;
+        const status = w.status || (w.dirty ? 'dirty' : 'clean');
+        const safeRemove = !!w.safe_remove;
+        const statusBadge = status === 'merge candidate'
+          ? '<span class="lbl" style="background:#0e3a1a;color:#56d364;">merge candidate</span>'
+          : status === 'merged'
+          ? '<span class="lbl" style="background:#0d1117;color:#8b949e;">merged</span>'
+          : status === 'dirty'
+          ? '<span class="lbl" style="background:#4a0e0e;color:#ff7b72;">dirty</span>'
+          : '<span class="lbl" style="background:#161b22;color:#8b949e;">clean</span>';
+        const removeBtn = safeRemove
+          ? `<button onclick="removeWorktree('${safe}')" title="Safely remove this worktree while keeping the branch for later restoration">🧹 prune</button>`
+          : '';
+        return `<div class="worktree ${runningSet.has(w.name) ? 'live' : ''}"><div class="name">${w.name} ${statusBadge}</div><div class="commits">${w.commits || 'no commits yet'} · ${w.branch || 'no branch'} · ${status}${w.ahead ? ` · +${w.ahead}` : ''}${runningSet.has(w.name) ? ' · agent active' : ''}</div><button onclick="openWorktreeShell('${safe}')" title="Open an interactive shell in this worktree">🖥️ open shell</button>${removeBtn}</div>`;
       }).join('');
     }
   } catch(e) { console.error(e); }
+}
+
+async function pruneMergedWorktrees() {
+  const targets = allWorktrees.filter(w => w.safe_remove);
+  if (!targets.length) { showToast('no merged worktrees to prune', 'err'); return; }
+  if (!confirm(`Prune ${targets.length} merged worktree${targets.length === 1 ? '' : 's'}? The branches stay around for later recreation.`)) return;
+  for (const w of targets) {
+    await removeWorktree(w.name, true);
+  }
+  await listWorktrees();
+}
+
+let allApprovals = [];
+
+async function listApprovals() {
+  try {
+    const r = await fetch('/api/approvals');
+    const data = await r.json();
+    const el = document.getElementById('approvals');
+    allApprovals = data.approvals || [];
+    const pending = allApprovals.filter(i => i.status === 'pending');
+    document.getElementById('approvalCount').textContent = `${pending.length} pending`;
+    if (!allApprovals.length) { el.innerHTML = '<div class="empty">no approval items</div>'; return; }
+    el.innerHTML = allApprovals.map(item => {
+      const isPending = item.status === 'pending';
+      const safeId = String(item.id || '').replace(/'/g, "\\'");
+      const safeDesc = escapeHtml(item.description || '');
+      const safeCmd = escapeHtml(item.proposedCommand || '');
+      const safeReason = escapeHtml(item.reasoning || '');
+      const age = item.timestamp ? fmtAgo(new Date(item.timestamp).getTime() / 1000) : '';
+      return `
+        <div class="approval-item" id="approval-${safeId}">
+          <div class="head">
+            <span class="kind">${escapeHtml(item.type || 'run')}</span>
+            <span class="desc">${safeDesc}</span>
+          </div>
+          <div class="meta-line">${age ? `added ${age} ago` : ''} · status: ${item.status || 'unknown'}</div>
+          <div class="cmd">${safeCmd}</div>
+          ${item.reasoning ? `<div class="meta-line">reasoning: ${safeReason}</div>` : ''}
+          ${isPending ? `
+          <div class="row">
+            <button class="approve" onclick="resolveApproval('${safeId}', 'approve')" title="Approve this action">✓ approve</button>
+            <button class="reject" onclick="resolveApproval('${safeId}', 'reject')" title="Reject this action">✕ reject</button>
+          </div>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function resolveApproval(id, action) {
+  try {
+    const r = await fetch('/api/approvals', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action, id})
+    });
+    const data = await r.json();
+    if (data.error) { showToast(`error: ${data.error}`, 'err'); return; }
+    showToast(`${action === 'approve' ? 'approved' : 'rejected'} ${id}`, 'ok');
+    listApprovals();
+  } catch(e) { showToast(`failed: ${e}`, 'err'); }
 }
 
 let issueFilter = 'all';
@@ -293,8 +431,13 @@ async function listIssues() {
       return;
     }
     allIssues = data.issues || [];
-    document.getElementById('issueCount').textContent = `${allIssues.length} open`;
+    for (const it of allIssues) {
+      if (it && it.number != null && it.body) _issueBodyCache.set(String(it.number), it.body);
+    }
+    const claimable = allIssues.filter(it => it.labels && it.labels.includes('claim-next')).length;
+    document.getElementById('issueCount').textContent = `${allIssues.length} open · ${claimable} claim-next`;
     renderIssues();
+    renderActivity();
   } catch(e) { console.error(e); }
 }
 
@@ -307,18 +450,31 @@ function renderIssues() {
   el.innerHTML = filtered.map(it => {
     const interesting = it.labels.filter(l => ['claim-next','in-progress','needs-validation','keystone','good first issue','agent-friendly'].includes(l));
     const labelChips = interesting.map(l => `<span class="lbl ${l.replace(/[^a-z0-9-]/g,'-')}">${l}</span>`).join('');
+    const suggested = (it.suggested_labels || []).filter(l => !it.labels.includes(l));
+    const suggestedChips = suggested.length ? `<span class="suggested">suggested ${suggested.map(l => `<span class="lbl">${l}</span>`).join('')}</span>` : '';
+    const metaBits = [];
+    if (it.author) metaBits.push(`by ${it.author}`);
+    if (it.assignees && it.assignees.length) metaBits.push(`assignee ${it.assignees.join(', ')}`);
+    if (it.updatedAt) metaBits.push(`updated ${fmtAgo(it.updatedAt)} ago`);
+    if (it.comment_count != null) metaBits.push(`${it.comment_count} comment${it.comment_count === 1 ? '' : 's'}`);
+    const summary = escapeHtml(it.summary || 'no body yet');
+    const tooltip = escapeHtml(`${it.title}\n${it.summary || ''}`.trim());
     return `
       <div class="issue ${it.in_progress ? 'busy' : ''} ${it.parked ? 'parked' : ''}" data-num="${it.number}">
         <div class="ttl">
           <span class="caret" data-action="toggle" title="Show issue body (Researcher / Demo / Acceptance / Anti-features / Files)">▸</span>
           <span class="num">#${it.number}</span>
-          <span class="title-text" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</span>
+          <span class="title-text" title="${tooltip}">${escapeHtml(it.title)}</span>
           <a class="ext" href="${escapeHtml(it.url)}" target="_blank" title="Open issue on GitHub">↗</a>
         </div>
+        <div class="summary">${summary}</div>
+        ${metaBits.length ? `<div class="meta">${escapeHtml(metaBits.join(' · '))}</div>` : ''}
         ${labelChips ? `<div class="lbls">${labelChips}</div>` : ''}
+        ${suggestedChips ? `<div class="suggested">${suggestedChips}</div>` : ''}
         <div class="body" id="ibody-${it.number}"></div>
         <div class="row">
-          <button onclick="launchIssueShell(${it.number})" title="Prep worktree + run codex --yolo (gpt-5.4-mini) interactively with this issue's prompt">🖥️ codex --yolo</button>
+          <button onclick="launchIssueShell(${it.number})" title="Claim the issue, prep the worktree, and run codex --yolo interactively with the issue prompt">⚑ claim</button>
+          <button onclick="window.open('${it.url}', '_blank')" title="Open issue on GitHub">↗ GitHub</button>
           <button onclick="launchIssue(${it.number}, 'watch')" ${it.in_progress ? 'disabled' : ''} title="Spawn orchestrator (headless codex exec); auto-switch terminal to log">▶ watch</button>
           <button class="headless" onclick="launchIssue(${it.number}, 'headless')" ${it.in_progress ? 'disabled' : ''} title="Spawn orchestrator in background; don't switch view">⌁ bg</button>
         </div>
@@ -382,36 +538,65 @@ async function listPRs() {
       el.innerHTML = `<div class="empty">gh error: ${data.prs[0].error}</div>`;
       return;
     }
-    document.getElementById('prCount').textContent = `${data.prs.length} open`;
-    if (!data.prs.length) { el.innerHTML = '<div class="empty">no open PRs</div>'; return; }
-    el.innerHTML = data.prs.map(pr => {
+    allPRs = (data.prs || []).slice().sort((a, b) => {
+      const score = pr => {
+        const ready = pr.mergeable === 'MERGEABLE' && !pr.isDraft && pr.ci === 'pass' && pr.reviewDecision !== 'CHANGES_REQUESTED';
+        if (ready) return 0;
+        if (pr.ci === 'fail') return 1;
+        if (pr.reviewDecision === 'CHANGES_REQUESTED') return 2;
+        if (pr.isDraft) return 3;
+        return 4;
+      };
+      const diff = score(a) - score(b);
+      return diff || (a.number - b.number);
+    });
+    const readyCount = allPRs.filter(pr => pr.mergeable === 'MERGEABLE' && !pr.isDraft && pr.ci === 'pass' && pr.reviewDecision !== 'CHANGES_REQUESTED').length;
+    document.getElementById('prCount').textContent = `${allPRs.length} open · ${readyCount} ready`;
+    if (!allPRs.length) { el.innerHTML = '<div class="empty">no open PRs</div>'; renderActivity(); return; }
+    el.innerHTML = allPRs.map(pr => {
       const decision = pr.reviewDecision || '';
       const decBadge = decision ? `<span class="b ${decision.toLowerCase()}">${decision.replace('_',' ').toLowerCase()}</span>` : '';
       const ciBadge = `<span class="b ci-${pr.ci}">CI: ${pr.ci}</span>`;
       const draftBadge = pr.isDraft ? '<span class="b draft">draft</span>' : '';
       const mergeable = pr.mergeable === 'MERGEABLE';
       const mergeDisabled = !mergeable || pr.isDraft || decision === 'CHANGES_REQUESTED';
+      const ready = mergeable && !pr.isDraft && pr.ci === 'pass' && decision !== 'CHANGES_REQUESTED';
       const reviewed = !!pr.reviewed_by_codex;
       const reviewUrl = pr.review_url || pr.url + '#issuecomment';
       const reviewBadge = reviewed
         ? `<a href="${escapeHtml(reviewUrl)}" target="_blank" class="b reviewed" title="codex already posted a verdict on this PR — click to open">codex ✓</a>`
         : '';
       const reviewTitle = reviewed
-        ? `codex already reviewed this PR — re-run only if the diff changed materially. Click "codex ✓" badge to read the verdict.`
-        : `Run codex --yolo (gpt-5.4-mini) interactively over the PR diff + issue body. Codex writes its verdict to a file; after it exits, the wrapper auto-posts to the PR and captures the comment URL.`;
+          ? `codex already reviewed this PR — re-run only if the diff changed materially. Click "codex ✓" badge to read the verdict.`
+          : `Run codex --yolo (gpt-5.4-mini) interactively over the PR diff + issue body. Codex writes its verdict to a file; after it exits, the wrapper auto-posts to the PR and captures the comment URL.`;
+      const metaBits = [];
+      if (pr.author) metaBits.push(`by ${pr.author}`);
+      if (pr.headRefName) metaBits.push(`branch ${pr.headRefName}`);
+      if (pr.updatedAt) metaBits.push(`updated ${fmtAgo(pr.updatedAt)} ago`);
+      const failing = (pr.failing_checks || []).length ? `failing: ${pr.failing_checks.join(', ')}` : '';
+      const pending = (pr.pending_checks || []).length ? `pending: ${pr.pending_checks.join(', ')}` : '';
+      const checks = failing || pending ? `<div class="checks">${escapeHtml(failing || pending)}</div>` : '';
+      const fixTitle = pr.ci === 'fail'
+        ? 'Run codex --yolo against the failing checks and fix them in the branch'
+        : 'Inspect the CI state and use codex if the PR needs a repair';
       return `
         <div class="pr">
-          <div class="ttl"><span class="num">#${pr.number}</span> ${escapeHtml(pr.title)}${reviewBadge}</div>
-          <div class="badges">${draftBadge}${decBadge}${ciBadge}</div>
+          <div class="ttl"><span class="num">#${pr.number}</span> <span class="title-text" title="${escapeHtml(pr.title + '\n' + (pr.summary || ''))}">${escapeHtml(pr.title)}</span> <a class="ext" href="${escapeHtml(pr.url)}" target="_blank" title="Open PR on GitHub">↗</a>${reviewBadge}</div>
+          <div class="summary">${escapeHtml(pr.summary || 'no body yet')}</div>
+          ${metaBits.length ? `<div class="meta">${escapeHtml(metaBits.join(' · '))}</div>` : ''}
+          <div class="badges">${ready ? '<span class="b ready">ready</span>' : ''}${draftBadge}${decBadge}${ciBadge}</div>
+          ${checks}
           <div class="row">
             <button class="review${reviewed ? ' done' : ''}" onclick="reviewPR(${pr.number})" title="${escapeHtml(reviewTitle)}">${reviewed ? '🔁 re-review' : '🔍 codex --yolo review'}</button>
             <button class="merge interactive" onclick="mergeInteractive(${pr.number})" title="Open an interactive codex --yolo session that merges PR #${pr.number} into main. If the squash-merge fails on conflicts, codex rebases onto main, resolves conflicts (asking you if uncertain), pushes, and retries. Push notification fires when it needs you.">🟢 codex --yolo merge</button>
+            <button class="fixci" onclick="fixCI(${pr.number})" title="${escapeHtml(fixTitle)}">${pr.ci === 'fail' ? '🩹 fix CI' : '🩹 inspect CI'}</button>
             <button class="merge" onclick="mergePR(${pr.number})" ${mergeDisabled ? 'disabled' : ''} title="${mergeDisabled ? 'PR is draft / not mergeable / changes requested' : 'gh pr merge --squash --delete-branch — no agent, just the gh call'}">✓ quick squash-merge</button>
             <button onclick="viewPRDiff(${pr.number})" title="Show the diff in the terminal pane">view diff</button>
           </div>
         </div>
       `;
     }).join('');
+    renderActivity();
   } catch(e) { console.error(e); }
 }
 
@@ -453,6 +638,23 @@ async function mergeInteractive(num) {
   } catch(e) { showToast(`merge launch failed: ${e}`, 'err'); }
 }
 
+async function fixCI(num) {
+  requestNotifPermission();
+  showToast(`preparing CI fix for PR #${num}…`, '');
+  try {
+    const r = await fetch('/api/pty/new', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kind:'ci-fix', pr: num, rows: term.rows, cols: term.cols})
+    });
+    const data = await r.json();
+    if (data.error) { showToast(`error: ${data.error}`, 'err'); return; }
+    sessionPRInfo.set(data.sid, {pr: num, url: data.pr_url, kind: 'fix-ci'});
+    showToast(`PR #${num} → codex --yolo CI fix running.`, 'ok');
+    await listPtys();
+    selectPty(data.sid, data.label || `fix CI PR #${num}`);
+  } catch(e) { showToast(`CI fix launch failed: ${e}`, 'err'); }
+}
+
 async function mergePR(num) {
   if (!confirm(`Squash-merge PR #${num} into main and delete the branch? No agent — just gh pr merge. This is final.`)) return;
   showToast(`merging PR #${num}…`, '');
@@ -491,7 +693,9 @@ function renderPRBar(sid) {
   const bar = document.getElementById('pr-bar');
   const info = sessionPRInfo.get(sid);
   if (!info || !info.pr) { bar.className = ''; bar.innerHTML = ''; return; }
-  const kindLabel = info.kind === 'review' ? 'reviewing' : (info.kind === 'merge' ? 'merging' : '');
+  const kindLabel = info.kind === 'review' ? 'reviewing'
+    : (info.kind === 'merge' ? 'merging'
+    : (info.kind === 'fix-ci' ? 'fixing CI' : 'working'));
   const prLink = info.url
     ? `<a href="${escapeHtml(info.url)}" target="_blank">PR #${info.pr} ↗</a>`
     : `PR #${info.pr}`;
@@ -714,9 +918,12 @@ async function listPtys() {
     const data = await r.json();
     const el = document.getElementById('ptys');
     const sessions = data.sessions || [];
+    allPtys = sessions;
     // Detect alive→dead transitions and fire notifications, then refresh PRs
     // so the reviewed badge appears if the session just posted a verdict.
     let didTransition = false;
+    let idleCount = 0;
+    const now = Date.now();
     for (const s of sessions) {
       const prev = _prevPtyAlive.get(s.sid);
       if (prev === true && !s.alive) {
@@ -729,9 +936,34 @@ async function listPtys() {
         fireNotif(title, body, () => selectPty(s.sid, s.label));
       }
       _prevPtyAlive.set(s.sid, s.alive);
+
+      const state = idleState.get(s.sid) || {lastOutput: 0, notified: false};
+      if (state.lastOutput !== s.last_output) {
+        state.lastOutput = s.last_output;
+        state.notified = false;
+      }
+      if (s.alive && s.last_output && (now - s.last_output * 1000) > 30000) {
+        idleCount++;
+        if (!state.notified) {
+          const info = sessionPRInfo.get(s.sid) || {};
+          const title = info.pr
+            ? `codex ${info.kind || 'session'} needs you · PR #${info.pr}`
+            : `codex session needs you`;
+          fireNotif(title, s.label || s.sid, () => selectPty(s.sid, s.label));
+          state.notified = true;
+        }
+      }
+      idleState.set(s.sid, state);
     }
     if (didTransition) { listPRs(); listIssues(); }
-    if (!sessions.length) { el.innerHTML = '<div class="empty">no terminals · click + new shell</div>'; return; }
+    document.getElementById('needsCount').textContent = `${idleCount} idle`;
+    if (!sessions.length) {
+      document.getElementById('needsCount').textContent = '0 idle';
+      renderNeedsMe();
+      renderActivity();
+      el.innerHTML = '<div class="empty">no terminals · click + new shell</div>';
+      return;
+    }
     el.innerHTML = sessions.map(s => {
       const cwd = s.cwd.replace(/^.*?\.agent-worktrees\//, '.agent-worktrees/').replace(/^.*?\/autoresearch-ai\/(?:\.claude\/worktrees\/[^/]+\/)?/, '');
       const label = s.label || s.sid;
@@ -746,7 +978,87 @@ async function listPtys() {
         : `Session ended. Click to view its scrollback (no new input possible).`;
       return `<div class="${cls}" data-sid="${escapeHtml(s.sid)}" data-label="${escapeHtml(label)}" title="${escapeHtml(tip)}">${dot} ${escapeHtml(label)}<div class="meta">${escapeHtml(cwd)}</div></div>`;
     }).join('');
+    renderNeedsMe();
+    renderActivity();
   } catch(e) { console.error(e); }
+}
+
+function renderNeedsMe() {
+  const el = document.getElementById('needsme');
+  const sessions = allPtys.filter(s => s.alive && s.last_output && (Date.now() - s.last_output * 1000) > 30000);
+  if (!sessions.length) {
+    el.innerHTML = '<div class="empty">nothing waiting right now</div>';
+    return;
+  }
+  el.innerHTML = sessions.map(s => {
+    const info = sessionPRInfo.get(s.sid) || {};
+    const label = s.label || s.sid;
+    const kind = info.kind || 'session';
+    const meta = [];
+    if (info.pr) meta.push(`PR #${info.pr}`);
+    if (info.issue) meta.push(`issue #${info.issue}`);
+    if (s.cwd) meta.push(s.cwd.replace(/^.*?\/autoresearch-ai\//, ''));
+    return `<div class="session">
+      <div class="title"><span class="name">${escapeHtml(label)}</span><span class="idle">${escapeHtml(fmtIdle(s.last_output * 1000))}</span></div>
+      <div class="status">${escapeHtml(kind)}</div>
+      ${meta.length ? `<div class="meta-line">${escapeHtml(meta.join(' · '))}</div>` : ''}
+      <button data-sid="${escapeHtml(s.sid)}" data-label="${escapeHtml(label)}" onclick="selectPty(this.dataset.sid, this.dataset.label)">focus</button>
+    </div>`;
+  }).join('');
+}
+
+function renderActivity() {
+  const items = [];
+  for (const it of allIssues) {
+    const ts = it.updatedAt ? new Date(it.updatedAt).getTime() : 0;
+    if (!ts) continue;
+    items.push({
+      ts,
+      kind: 'issue',
+      title: `#${it.number} ${it.title}`,
+      detail: it.summary || '',
+      href: it.url,
+    });
+  }
+  for (const pr of allPRs) {
+    const ts = pr.updatedAt ? new Date(pr.updatedAt).getTime() : 0;
+    if (!ts) continue;
+    items.push({
+      ts,
+      kind: 'pr',
+      title: `PR #${pr.number} ${pr.title}`,
+      detail: pr.summary || '',
+      href: pr.url,
+    });
+  }
+  for (const s of allPtys) {
+    const ts = (s.last_output || s.started || 0) * 1000;
+    if (!ts) continue;
+    items.push({
+      ts,
+      kind: 'pty',
+      title: s.label || s.sid,
+      detail: s.cwd.replace(/^.*?\/autoresearch-ai\//, ''),
+      sid: s.sid,
+      label: s.label || s.sid,
+    });
+  }
+  items.sort((a, b) => b.ts - a.ts);
+  const top = items.slice(0, 8);
+  document.getElementById('activityCount').textContent = `${top.length} recent`;
+  const el = document.getElementById('activity');
+  if (!top.length) { el.innerHTML = '<div class="empty">nothing recent yet</div>'; return; }
+  el.innerHTML = top.map(item => {
+    const kind = item.kind === 'issue' ? 'issue' : item.kind === 'pr' ? 'pr' : 'pty';
+    const link = item.kind === 'pty'
+      ? `<button data-sid="${escapeHtml(item.sid)}" data-label="${escapeHtml(item.label)}" onclick="selectPty(this.dataset.sid, this.dataset.label)">focus</button>`
+      : `<button data-href="${escapeHtml(item.href)}" onclick="window.open(this.dataset.href, '_blank')">open</button>`;
+    return `<div class="activity-item">
+      <div class="head"><span class="title">${escapeHtml(item.title)}</span><span class="kind">${kind} · ${escapeHtml(fmtAgo(item.ts))} ago</span></div>
+      <div class="meta-line">${escapeHtml(item.detail || '')}</div>
+      ${link}
+    </div>`;
+  }).join('');
 }
 
 // Event delegation for PTY rows — survives re-renders by listPtys().
@@ -782,6 +1094,7 @@ async function launchIssueShell(num) {
     const data = await r.json();
     if (data.error) { showToast('error: ' + data.error, 'err'); return; }
     showToast(`#${num} → codex --yolo (${data.model || 'gpt-5.4-mini'}) running interactively`, 'ok');
+    sessionPRInfo.set(data.sid, {issue: num, branch: data.branch, kind: 'issue', url: data.issue_url || ''});
     await listPtys();
     selectPty(data.sid, data.label || `#${num}`);
     listIssues(); listWorktrees();
@@ -798,10 +1111,37 @@ async function proposeIssue() {
     const data = await r.json();
     if (data.error) { showToast('error: ' + data.error, 'err'); return; }
     showToast(`propose · ${data.slug} → codex --yolo running. Draft: ${data.draft_file}`, 'ok');
+    sessionPRInfo.set(data.sid, {kind: 'propose', slug: data.slug});
     await listPtys();
     selectPty(data.sid, data.label || `propose · ${data.slug}`);
     listFiles();
   } catch(e) { showToast('propose failed: ' + e, 'err'); }
+}
+
+async function batchClaimNext() {
+  const count = parseInt(prompt('Launch how many claim-next issues?', '3'), 10);
+  if (!Number.isFinite(count) || count <= 0) return;
+  const issues = allIssues.filter(it => it.claim_next && !it.in_progress).slice(0, count);
+  if (!issues.length) { showToast('no claim-next issues available', 'err'); return; }
+  if (!confirm(`Launch ${issues.length} issue shell${issues.length === 1 ? '' : 's'}?`)) return;
+  for (let i = 0; i < issues.length; i++) {
+    await launchIssueShell(issues[i].number);
+    if (i < issues.length - 1) await new Promise(rs => setTimeout(rs, 800));
+  }
+}
+
+async function removeWorktree(name, quiet) {
+  if (!quiet && !confirm(`Remove worktree ${name}? The branch stays around so it can be recreated later.`)) return;
+  try {
+    const r = await fetch('/api/worktree/remove', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name})
+    });
+    const d = await r.json();
+    if (d.error) { showToast('error: ' + d.error, 'err'); return; }
+    showToast(`removed worktree ${name}`, 'ok');
+    listWorktrees();
+  } catch(e) { showToast('remove failed: ' + e, 'err'); }
 }
 
 async function cleanupState(dryRun) {
@@ -882,12 +1222,13 @@ window.addEventListener('blur', hideTip);
 // Browsers gate Notifications behind a user gesture — ask on the first click.
 window.addEventListener('click', () => requestNotifPermission(), {once: true, capture: true});
 
-listFiles(); listWorktrees(); listIssues(); listPRs(); listPtys();
+listFiles(); listWorktrees(); listIssues(); listPRs(); listPtys(); listApprovals();
 setInterval(listFiles, 5000);
 setInterval(listWorktrees, 4000);
 setInterval(listIssues, 20000);
 setInterval(listPRs, 15000);
 setInterval(listPtys, 3000);
+setInterval(listApprovals, 5000);
 </script>
 </body></html>"""
 
@@ -934,8 +1275,11 @@ def spawn_pty(argv, cwd=None, env_extra=None, label="", rows=30, cols=120):
             if cwd:
                 os.chdir(cwd)
             env = os.environ.copy()
-            env.setdefault("TERM", "xterm-256color")
-            env.setdefault("COLORTERM", "truecolor")
+            # Force a real terminal type for children. The dashboard itself is
+            # often launched from a non-interactive shell, which can leave TERM
+            # stuck at "dumb" and makes Codex refuse to start its TUI.
+            env["TERM"] = "xterm-256color"
+            env["COLORTERM"] = "truecolor"
             if env_extra:
                 env.update(env_extra)
             for k, v in env.items():
@@ -953,6 +1297,8 @@ def spawn_pty(argv, cwd=None, env_extra=None, label="", rows=30, cols=120):
         "cwd": cwd or os.getcwd(),
         "label": label or " ".join(argv),
         "started": time.time(),
+        "last_output": time.time(),
+        "last_input": time.time(),
         "rows": rows, "cols": cols,
         "buf": bytearray(),
         "drop": 0,                       # bytes trimmed off the front
@@ -986,6 +1332,7 @@ def _pty_reader(sid):
                 if not chunk:
                     break
                 with sess["cond"]:
+                    sess["last_output"] = time.time()
                     sess["buf"].extend(chunk)
                     # Ring-buffer cap: trim oldest bytes if we exceed cap.
                     excess = len(sess["buf"]) - _PTY_BUF_CAP
@@ -1025,6 +1372,7 @@ def pty_write(sid, data: bytes) -> bool:
         return False
     try:
         os.write(sess["fd"], data)
+        sess["last_input"] = time.time()
         return True
     except OSError:
         return False
@@ -1093,6 +1441,8 @@ def list_ptys():
                 "cwd": s["cwd"],
                 "alive": s["alive"],
                 "started": s["started"],
+                "last_output": s.get("last_output") or s["started"],
+                "last_input": s.get("last_input") or s["started"],
                 "rows": s["rows"], "cols": s["cols"],
             }
             for s in _PTY_SESSIONS.values()
@@ -1125,6 +1475,110 @@ def spawn_shell_session(cwd: Path, label: str = "", env_extra=None):
     sess = spawn_pty(argv, cwd=str(cwd), env_extra=env_extra,
                      label=label or f"shell · {_safe_relpath(cwd)}")
     return {"sid": sess["sid"], "label": sess["label"], "cwd": sess["cwd"]}
+
+
+def _text_preview(text, limit=180):
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return ""
+    blocks = [b.strip() for b in re.split(r"\n{2,}", text) if b.strip()]
+    snippet = blocks[0] if blocks else text.splitlines()[0]
+    snippet = re.sub(r"\s+", " ", snippet)
+    if len(snippet) > limit:
+        snippet = snippet[: max(0, limit - 1)].rstrip() + "…"
+    return snippet
+
+
+def _issue_label_suggestions(title, body):
+    hay = f"{title}\n{body}".lower()
+    suggestions = []
+    rules = [
+        ("needs-validation", [r"\bmaybe\b", r"\bshould we\b", r"\bidea\b", r"\bexplore\b", r"\bquestion\b"]),
+        ("agent-friendly", [r"\bagent\b", r"\bdashboard\b", r"\bterminal\b", r"\bworktree\b", r"\bpty\b"]),
+        ("claim-next", [r"\bimplement\b", r"\bfix\b", r"\badd\b", r"\bbuild\b", r"\bship\b"]),
+        ("good first issue", [r"\bsmall\b", r"\bbeginner\b", r"\bintro\b", r"\beasy\b"]),
+    ]
+    for label, pats in rules:
+        if any(re.search(pat, hay) for pat in pats):
+            suggestions.append(label)
+    return suggestions[:3]
+
+
+def _git_branch_merged(branch: str) -> bool:
+    if not branch:
+        return False
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "branch", "--merged", "origin/main", "--format", "%(refname:short)"],
+            capture_output=True, text=True, timeout=10, check=True,
+        ).stdout.splitlines()
+        return branch in {line.strip() for line in out if line.strip()}
+    except Exception:
+        return False
+
+
+def _worktree_status(path: Path):
+    branch = ""
+    head = ""
+    dirty = False
+    ahead = 0
+    try:
+        branch = subprocess.run(
+            ["git", "-C", str(path), "branch", "--show-current"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip()
+    except Exception:
+        branch = ""
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip()
+    except Exception:
+        head = ""
+    try:
+        dirty = bool(subprocess.run(
+            ["git", "-C", str(path), "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip())
+    except Exception:
+        dirty = False
+    try:
+        commits = subprocess.run(
+            ["git", "-C", str(path), "log", "--oneline", "origin/main..HEAD"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.strip()
+        ahead = len([line for line in commits.splitlines() if line.strip()])
+    except Exception:
+        ahead = 0
+    merged = _git_branch_merged(branch)
+    if dirty:
+        status = "dirty"
+    elif merged:
+        status = "merged"
+    elif ahead:
+        status = "merge candidate"
+    else:
+        status = "clean"
+    return {
+        "branch": branch,
+        "head": head,
+        "dirty": dirty,
+        "ahead": ahead,
+        "merged": merged,
+        "status": status,
+        "safe_remove": merged and not dirty,
+    }
+
+
+def _pty_in_use(worktree_path: Path) -> bool:
+    prefix = str(worktree_path)
+    with _PTY_LOCK:
+        for sess in _PTY_SESSIONS.values():
+            cwd = sess.get("cwd") or ""
+            if cwd == prefix or cwd.startswith(prefix + os.sep):
+                return True
+    return False
 
 
 def git_branch_exists(branch: str) -> bool:
@@ -1393,15 +1847,22 @@ def list_issues():
     try:
         out = subprocess.run(
             ["gh", "issue", "list", "--state", "open",
-             "--limit", "100", "--json", "number,title,labels,url"],
+             "--limit", "100", "--json", "number,title,body,labels,url,author,assignees,comments,createdAt,updatedAt,state"],
             capture_output=True, text=True, timeout=20, check=True,
         ).stdout
         issues = json.loads(out)
         for it in issues:
             it["labels"] = [l["name"] for l in it.get("labels", [])]
+            it["assignees"] = [a.get("login") for a in it.get("assignees", []) if a.get("login")]
             it["in_progress"] = "in-progress" in it["labels"]
             it["claim_next"] = "claim-next" in it["labels"]
             it["parked"] = "needs-validation" in it["labels"]
+            it["body"] = it.get("body") or ""
+            it["summary"] = _text_preview(it["body"], 180) or "no body yet"
+            it["suggested_labels"] = _issue_label_suggestions(it.get("title") or "", it["body"])
+            author = it.get("author") or {}
+            it["author"] = author.get("login") if isinstance(author, dict) else ""
+            it["comment_count"] = it.get("comments") or 0
         _ISSUES_CACHE.update({"ts": time.time(), "data": issues})
         return issues
     except Exception as e:
@@ -1414,7 +1875,7 @@ def list_prs():
     try:
         out = subprocess.run(
             ["gh", "pr", "list", "--state", "open", "--limit", "60",
-             "--json", "number,title,isDraft,headRefName,url,reviewDecision,mergeable,labels,statusCheckRollup,comments"],
+             "--json", "number,title,body,isDraft,headRefName,url,reviewDecision,mergeable,labels,statusCheckRollup,comments,author,createdAt,updatedAt"],
             capture_output=True, text=True, timeout=20, check=True,
         ).stdout
         prs = json.loads(out)
@@ -1423,6 +1884,15 @@ def list_prs():
             # rollup CI state
             checks = pr.get("statusCheckRollup") or []
             ci_states = [(c.get("conclusion") or c.get("status") or "").upper() for c in checks]
+            failing_checks = []
+            pending_checks = []
+            for c in checks if isinstance(checks, list) else []:
+                name = c.get("name") or c.get("context") or "check"
+                state = (c.get("conclusion") or c.get("status") or "").upper()
+                if state in ("FAILURE", "ERROR", "ACTION_REQUIRED"):
+                    failing_checks.append(name)
+                elif state not in ("SUCCESS", "COMPLETED", "NEUTRAL", "SKIPPED"):
+                    pending_checks.append(name)
             if not ci_states:
                 pr["ci"] = "none"
             elif any(s == "FAILURE" for s in ci_states):
@@ -1431,6 +1901,12 @@ def list_prs():
                 pr["ci"] = "pass"
             else:
                 pr["ci"] = "pending"
+            pr["failing_checks"] = failing_checks
+            pr["pending_checks"] = pending_checks
+            pr["body"] = pr.get("body") or ""
+            pr["summary"] = _text_preview(pr["body"], 180) or "no body yet"
+            author = pr.get("author") or {}
+            pr["author"] = author.get("login") if isinstance(author, dict) else ""
             del pr["statusCheckRollup"]
             # Did codex already post a verdict? Look for our signature header.
             comments = pr.get("comments") or []
@@ -1702,21 +2178,79 @@ def list_worktrees():
         if not p.is_dir():
             continue
         try:
+            st = _worktree_status(p)
             commits = subprocess.run(
                 ["git", "-C", str(p), "log", "--oneline", "origin/main..HEAD"],
                 capture_output=True, text=True, timeout=5
             ).stdout.strip()
-            dirty = bool(subprocess.run(
-                ["git", "-C", str(p), "status", "--porcelain"],
-                capture_output=True, text=True, timeout=5
-            ).stdout.strip())
             commits_str = commits.split("\n")[0] if commits else ""
             if commits and len(commits.split("\n")) > 1:
                 commits_str += f" (+{len(commits.split(chr(10))) - 1} more)"
-            out.append({"name": p.name, "commits": commits_str, "dirty": dirty})
+            st.update({"name": p.name, "path": str(p), "commits": commits_str})
+            out.append(st)
         except Exception as e:
-            out.append({"name": p.name, "commits": f"(error: {e})", "dirty": False})
+            out.append({"name": p.name, "path": str(p), "commits": f"(error: {e})", "dirty": False, "status": "error", "safe_remove": False})
+    def rank(w):
+        order = {"merge candidate": 0, "clean": 1, "merged": 2, "dirty": 3, "error": 4}
+        return (order.get(w.get("status"), 9), w.get("dirty"), w.get("name"))
+    out.sort(key=rank)
     return out
+
+
+def remove_worktree(name: str):
+    if not name:
+        return {"error": "name required"}
+    wt = WORKTREES_DIR / name
+    if not wt.exists():
+        return {"error": "worktree not found"}
+    if _pty_in_use(wt):
+        return {"error": "worktree is in use by a live terminal"}
+    st = _worktree_status(wt)
+    if st["dirty"]:
+        return {"error": "refusing to remove a dirty worktree"}
+    if not st["safe_remove"]:
+        return {"error": "worktree is not merged yet; keep it or merge first"}
+    try:
+        subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "worktree", "remove", str(wt)],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        return {"error": (e.stderr or e.stdout or "").strip() or "worktree remove failed"}
+    except Exception as e:
+        return {"error": f"worktree remove failed: {e}"}
+    invalidate_caches()
+    return {"removed": True, "name": name}
+
+
+def prepare_ci_fix(pr_num: int):
+    if not (1 <= pr_num <= 9999):
+        return {"error": "bad pr number"}
+    prs = list_prs()
+    meta = next((pr for pr in prs if pr.get("number") == pr_num), None)
+    if not meta:
+        return {"error": f"PR #{pr_num} not found"}
+    template_path = PROMPTS_DIR / "fix-ci.md"
+    if not template_path.exists():
+        return {"error": "prompts/fix-ci.md missing"}
+    tpl = template_path.read_text()
+    prompt = (
+        tpl.replace("$PR_NUMBER", str(pr_num))
+           .replace("$PR_BRANCH", meta.get("headRefName") or "")
+           .replace("$PR_URL", meta.get("url") or "")
+           .replace("$FAILING_CHECKS", ", ".join(meta.get("failing_checks") or []) or "none")
+           .replace("$PENDING_CHECKS", ", ".join(meta.get("pending_checks") or []) or "none")
+    )
+    prompt_file = STATE_DIR / f"fix-ci-prompt-{pr_num}.md"
+    prompt_file.write_text(prompt)
+    return {
+        "pr": pr_num,
+        "branch": meta.get("headRefName") or "",
+        "url": meta.get("url") or "",
+        "prompt_file": str(prompt_file),
+        "failing_checks": meta.get("failing_checks") or [],
+        "pending_checks": meta.get("pending_checks") or [],
+    }
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -1762,6 +2296,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._send_json({"issues": list_issues()})
         if u.path == "/api/prs":
             return self._send_json({"prs": list_prs()})
+        if u.path == "/api/approvals":
+            approvals_path = REPO_ROOT / ".researchloop" / "approvals.jsonl"
+            items = []
+            if approvals_path.exists():
+                try:
+                    with approvals_path.open() as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    items.append(json.loads(line))
+                                except json.JSONDecodeError:
+                                    pass
+                except Exception:
+                    pass
+            return self._send_json({"approvals": items})
         if u.path == "/api/pty/list":
             reap_dead_ptys()
             return self._send_json({"sessions": list_ptys()})
@@ -1855,6 +2405,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
             strategy = payload.get("strategy", "squash")
             result = merge_pr(pr, strategy)
             return self._send_json(result, 200 if result.get("merged") else 400)
+
+        if u.path == "/api/approvals":
+            action = payload.get("action")
+            approval_id = payload.get("id")
+            approvals_path = REPO_ROOT / ".researchloop" / "approvals.jsonl"
+            items = []
+            if approvals_path.exists():
+                try:
+                    with approvals_path.open() as f:
+                        for line in f:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    items.append(json.loads(line))
+                                except json.JSONDecodeError:
+                                    pass
+                except Exception:
+                    pass
+            if action in ("approve", "reject"):
+                if not approval_id:
+                    return self._send_json({"error": "id required"}, 400)
+                found = False
+                for item in items:
+                    if item.get("id") == approval_id and item.get("status") == "pending":
+                        item["status"] = "approved" if action == "approve" else "rejected"
+                        item["resolvedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                        found = True
+                        break
+                if not found:
+                    return self._send_json({"error": "approval not found or already resolved"}, 404)
+                try:
+                    with approvals_path.open("w") as f:
+                        for item in items:
+                            f.write(json.dumps(item) + "\n")
+                    return self._send_json({"ok": True, "id": approval_id, "status": item["status"]})
+                except Exception as e:
+                    return self._send_json({"error": str(e)}, 500)
+            return self._send_json({"error": "unknown action"}, 400)
 
         if u.path == "/api/pty/new":
             kind = payload.get("kind", "shell")
@@ -2026,6 +2614,62 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "prompt_file": prompt_file,
                 })
 
+            if kind == "ci-fix":
+                try:
+                    pr = int(payload.get("pr"))
+                except (TypeError, ValueError):
+                    return self._send_json({"error": "pr must be int"}, 400)
+                prep = prepare_ci_fix(pr)
+                if prep.get("error"):
+                    return self._send_json(prep, 400)
+                prompt_file = prep["prompt_file"]
+                model = payload.get("model") or CODEX_MODEL
+                bin_  = payload.get("bin")   or CODEX_BIN
+                yolo  = payload.get("yolo_flag") or CODEX_YOLO
+
+                env_extra = {
+                    "PR_NUMBER": str(pr),
+                    "PR_BRANCH": prep.get("branch", ""),
+                    "PR_URL": prep.get("url", ""),
+                    "PROMPT_FILE": prompt_file,
+                    "PS1": "\\[\\e[34m\\]fix-ci·PR#" + str(pr) + "\\[\\e[0m\\]:\\W$ ",
+                }
+                wrapper = (
+                    'echo "──── starting {bin} ({yolo_short}) CI fix for PR #{pr} ────"; '
+                    'echo "      model:  {model}"; '
+                    'echo "      branch: $PR_BRANCH"; '
+                    'echo "      prompt: $PROMPT_FILE"; '
+                    'echo "      checks: {checks}"; '
+                    'echo "────"; '
+                    '{bin} {yolo} -m {model_q} -- "$(cat \"$PROMPT_FILE\")"; '
+                    'ec=$?; '
+                    'echo; '
+                    'echo "──── {bin} exited (code $ec) — dropping to shell ────"; '
+                    'exec {shell} -i'
+                ).format(
+                    pr=pr,
+                    model=model,
+                    model_q=shlex.quote(model),
+                    bin=shlex.quote(bin_),
+                    yolo=yolo,
+                    yolo_short="yolo" if ("bypass" in yolo or "yolo" in yolo) else yolo,
+                    checks=", ".join(prep.get("failing_checks") or []) or "no failing checks",
+                    shell=shlex.quote(USER_SHELL),
+                )
+                argv = ["bash", "-c", wrapper]
+                sess = spawn_pty(argv, cwd=str(REPO_ROOT), env_extra=env_extra,
+                                 label=f"codex fix-ci · PR #{pr}", rows=rows, cols=cols)
+                return self._send_json({
+                    "sid": sess["sid"],
+                    "label": sess["label"],
+                    "cwd": sess["cwd"],
+                    "pr": pr,
+                    "pr_url": prep.get("url"),
+                    "branch": prep.get("branch"),
+                    "model": model,
+                    "prompt_file": prompt_file,
+                })
+
             if kind == "propose-issue":
                 slug_hint = (payload.get("slug") or "").strip()
                 prep = prepare_proposal(slug_hint)
@@ -2183,6 +2827,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sid = payload.get("sid", "")
             ok = kill_pty(sid)
             return self._send_json({"ok": ok})
+
+        if u.path == "/api/worktree/remove":
+            name = (payload.get("name") or "").strip()
+            result = remove_worktree(name)
+            return self._send_json(result, 200 if result.get("removed") else 400)
 
         if u.path == "/api/state/cleanup":
             try:

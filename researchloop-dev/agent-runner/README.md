@@ -2,6 +2,8 @@
 
 Picks one `claim-next`-labeled issue, spawns an implementer agent (Codex or Claude Code) in a fresh git worktree, opens a draft PR, then spawns a reviewer agent (the other one) to post a verdict comment. Human merges what survives review.
 
+> Standalone extraction in progress: the separate `gitswarm` project now lives in `/Users/vukrosic/my-life/gitswarm` and is the path for the GitHub-issues dashboard split. This local copy stays here during the migration.
+
 ## Files
 
 - [`orchestrate.sh`](orchestrate.sh) — the one entry point. Bash; ~200 lines.

@@ -3724,6 +3724,80 @@ function cmdSuggest() {
   console.log(lines.join("\n"));
 }
 
+function cmdApprovals() {
+  const sub = positionalText(["list", "approve", "reject"]);
+  const cwd = targetDir();
+  const approvalsPath = path.join(cwd, ".researchloop", "approvals.jsonl");
+
+  if (!sub || sub === "list") {
+    let items = [];
+    try {
+      if (fs.existsSync(approvalsPath)) {
+        const raw = fs.readFileSync(approvalsPath, "utf8");
+        for (const line of raw.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try { items.push(JSON.parse(trimmed)); } catch { /* skip */ }
+        }
+      }
+    } catch { items = []; }
+
+    const pending = items.filter(i => i.status === "pending");
+    const approved = items.filter(i => i.status === "approved");
+    const rejected = items.filter(i => i.status === "rejected");
+
+    if (!items.length) {
+      console.log("No approval items.");
+      return;
+    }
+    console.log(`Pending: ${pending.length}  |  Approved: ${approved.length}  |  Rejected: ${rejected.length}\n`);
+    for (const item of pending) {
+      const age = item.timestamp ? new Date(item.timestamp).toLocaleString() : "unknown";
+      console.log(`[${item.id}] ${item.type} — ${item.description}`);
+      console.log(`  command: ${item.proposedCommand}`);
+      console.log(`  reasoning: ${item.reasoning}`);
+      console.log(`  added: ${age}\n`);
+    }
+    return;
+  }
+
+  if (sub === "approve" || sub === "reject") {
+    const targetId = option(sub, "");
+    if (!targetId) {
+      console.error(`Usage: autoresearch approvals ${sub} <id>`);
+      process.exitCode = 1;
+      return;
+    }
+    let items = [];
+    try {
+      if (fs.existsSync(approvalsPath)) {
+        const raw = fs.readFileSync(approvalsPath, "utf8");
+        for (const line of raw.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try { items.push(JSON.parse(trimmed)); } catch { /* skip */ }
+        }
+      }
+    } catch { items = []; }
+
+    const idx = items.findIndex(i => i.id === targetId && i.status === "pending");
+    if (idx === -1) {
+      console.error(`Approval ${targetId} not found or already resolved.`);
+      process.exitCode = 1;
+      return;
+    }
+    items[idx].status = sub === "approve" ? "approved" : "rejected";
+    items[idx].resolvedAt = new Date().toISOString();
+    fs.writeFileSync(approvalsPath, items.map(i => JSON.stringify(i)).join("\n") + "\n");
+    console.log(`${sub === "approve" ? "Approved" : "Rejected"}: ${targetId}`);
+    return;
+  }
+
+  console.error(`Unknown subcommand: ${sub}`);
+  console.error("Usage: autoresearch approvals [list|approve <id>|reject <id>]");
+  process.exitCode = 1;
+}
+
 function cmdQuery() {
   const rawExpr = positionalText();
   const fmt = option("--format", "table");
@@ -4455,6 +4529,8 @@ async function main() {
     cmdTopic();
   } else if (command === "query") {
     cmdQuery();
+  } else if (command === "approvals") {
+    cmdApprovals();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
