@@ -8,9 +8,9 @@ Squash-merge PR #$PR_NUMBER (branch `$PR_BRANCH`) into `main`, deleting the bran
 
 ## Pre-flight
 
-1. `gh pr view $PR_NUMBER --json mergeable,isDraft,reviewDecision` — confirm it's mergeable.
-   - If `isDraft: true` → ask the user whether to mark ready (`gh pr ready $PR_NUMBER`) or abort.
-   - If `reviewDecision: CHANGES_REQUESTED` → ask the user whether to override or abort.
+1. `gh api "$REPO_API_PATH" --jq '{mergeable, draft, state, merged_at}'` - confirm it is open and mergeable.
+   - If `draft: true` - ask the user whether to mark ready (`gh pr ready $PR_NUMBER`) or abort.
+   - If `mergeable` is `false` or `null` - tell the user the current state before attempting the merge.
 2. `gh pr checks $PR_NUMBER` — show CI state. If anything is `FAIL`, ask before proceeding.
 
 ## Happy path
@@ -49,4 +49,5 @@ When you need a yes/no or a choice, end your message with a clear question and w
 
 - PR number: $PR_NUMBER
 - PR branch: $PR_BRANCH
+- REST pull API: $REPO_API_PATH
 - Working dir: $REPO_ROOT

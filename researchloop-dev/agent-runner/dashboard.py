@@ -1127,6 +1127,31 @@ def spawn_shell_session(cwd: Path, label: str = "", env_extra=None):
     return {"sid": sess["sid"], "label": sess["label"], "cwd": sess["cwd"]}
 
 
+def git_branch_exists(branch: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+        timeout=5,
+    ).returncode == 0
+
+
+def git_worktree_for_branch(branch: str):
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=10, check=True,
+        ).stdout
+    except Exception:
+        return None
+    current = None
+    target = f"refs/heads/{branch}"
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            current = Path(line.split(" ", 1)[1])
+        elif current and line == f"branch {target}":
+            return current
+    return None
+
+
 def prepare_issue_worktree(issue_num: int):
     """Run the orchestrator's worktree-setup steps up to (but not including)
     spawning the agent. Returns paths so the caller can drop a shell into the
@@ -1139,14 +1164,12 @@ def prepare_issue_worktree(issue_num: int):
     """
     if not (1 <= issue_num <= 9999):
         return {"error": "bad issue number"}
-    # Title → slug → branch name (mirror orchestrate.sh's slug_for_issue).
+    # Title -> slug -> branch name (mirror orchestrate.sh's slug_for_issue).
     try:
-        title = subprocess.run(
-            ["gh", "issue", "view", str(issue_num), "--json", "title", "--jq", ".title"],
-            capture_output=True, text=True, timeout=15, check=True,
-        ).stdout.strip()
-    except subprocess.CalledProcessError as e:
-        return {"error": f"gh issue view #{issue_num}: {e.stderr.strip() or e}"}
+        issue_meta = fetch_issue_meta(issue_num)
+        title = (issue_meta.get("title") or "").strip()
+    except Exception as e:
+        return {"error": f"gh api issue #{issue_num}: {gh_error(e)}"}
     if not title:
         return {"error": f"could not fetch title for issue #{issue_num}"}
     slug = re.sub(r"^\[(agent|goal)\][^a-zA-Z0-9]*", "", title)
@@ -1156,26 +1179,33 @@ def prepare_issue_worktree(issue_num: int):
     branch = f"agent/{issue_num}-{slug}"
     worktree = WORKTREES_DIR / f"{issue_num}-{slug}"
 
-    if worktree.exists():
-        # Already prepared; reuse.
-        prompt_file = STATE_DIR / f"prompt-{issue_num}.md"
-        return {
-            "reused": True,
-            "branch": branch,
-            "worktree": str(worktree),
-            "prompt_file": str(prompt_file) if prompt_file.exists() else None,
-        }
-
     WORKTREES_DIR.mkdir(parents=True, exist_ok=True)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     try:
         subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "worktree", "add", "-b", branch,
-             str(worktree), "origin/main"],
-            check=True, capture_output=True, text=True, timeout=30,
+            ["git", "-C", str(REPO_ROOT), "worktree", "prune"],
+            capture_output=True, text=True, timeout=15,
         )
-    except subprocess.CalledProcessError as e:
-        return {"error": f"git worktree add: {(e.stderr or e.stdout or '').strip()}"}
+    except Exception:
+        pass
+
+    reused = False
+    existing_for_branch = git_worktree_for_branch(branch)
+    if existing_for_branch and existing_for_branch.exists():
+        worktree = existing_for_branch
+        reused = True
+    elif worktree.exists():
+        reused = True
+    else:
+        if git_branch_exists(branch):
+            cmd = ["git", "-C", str(REPO_ROOT), "worktree", "add", str(worktree), branch]
+        else:
+            cmd = ["git", "-C", str(REPO_ROOT), "worktree", "add", "-b", branch,
+                   str(worktree), "origin/main"]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=30)
+        except subprocess.CalledProcessError as e:
+            return {"error": f"git worktree add: {(e.stderr or e.stdout or '').strip()}"}
 
     # Relabel issue (best effort).
     try:
@@ -1192,10 +1222,7 @@ def prepare_issue_worktree(issue_num: int):
     body_path = STATE_DIR / f"issue-{issue_num}.body.md"
     prompt_path = STATE_DIR / f"prompt-{issue_num}.md"
     try:
-        body = subprocess.run(
-            ["gh", "issue", "view", str(issue_num), "--json", "body", "--jq", ".body"],
-            capture_output=True, text=True, timeout=15, check=True,
-        ).stdout
+        body = issue_meta.get("body") or fetch_issue_body(str(issue_num))
         body_path.write_text(body)
         if template_path.exists():
             tpl = template_path.read_text()
@@ -1212,7 +1239,8 @@ def prepare_issue_worktree(issue_num: int):
         }
     invalidate_caches()
     return {
-        "created": True,
+        "created": not reused,
+        "reused": reused,
         "branch": branch,
         "worktree": str(worktree),
         "prompt_file": str(prompt_path),
@@ -1222,6 +1250,141 @@ def prepare_issue_worktree(issue_num: int):
 # Simple in-memory caches so panels don't hammer the gh API.
 _ISSUES_CACHE = {"ts": 0, "data": None}
 _PRS_CACHE = {"ts": 0, "data": None}
+
+
+def gh_error(exc):
+    if isinstance(exc, subprocess.CalledProcessError):
+        msg = (exc.stderr or exc.output or "").strip()
+        return msg or str(exc)
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return f"timed out after {exc.timeout}s"
+    return str(exc)
+
+
+def is_transient_gh_error(msg):
+    low = (msg or "").lower()
+    return any(term in low for term in (
+        "eof", "timed out", "timeout", "connection reset",
+        "tls handshake", "502", "503", "504",
+    ))
+
+
+def run_gh(args, timeout=20, retries=2):
+    """Run gh with small retries for network EOFs, preserving final stderr."""
+    last = None
+    for attempt in range(retries + 1):
+        try:
+            result = subprocess.run(
+                ["gh", *args],
+                capture_output=True, text=True, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            last = e
+            if attempt < retries:
+                time.sleep(0.4 * (attempt + 1))
+                continue
+            raise
+        if result.returncode == 0:
+            return result.stdout
+        last = subprocess.CalledProcessError(
+            result.returncode, ["gh", *args], output=result.stdout, stderr=result.stderr
+        )
+        if attempt >= retries or not is_transient_gh_error(gh_error(last)):
+            raise last
+        time.sleep(0.4 * (attempt + 1))
+    raise last
+
+
+def github_repo_slug():
+    remote = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "remote", "get-url", "origin"],
+        capture_output=True, text=True, timeout=5, check=True,
+    ).stdout.strip()
+    m = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?$", remote.rstrip("/"))
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return run_gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], timeout=10).strip()
+
+
+def gh_api_json(path, timeout=20, retries=2):
+    return json.loads(run_gh(["api", path], timeout=timeout, retries=retries))
+
+
+def gh_api_text(path, headers=None, timeout=20, retries=2):
+    args = ["api"]
+    for header in headers or []:
+        args.extend(["-H", header])
+    args.append(path)
+    return run_gh(args, timeout=timeout, retries=retries)
+
+
+def fetch_pr_meta(pr_num: int):
+    slug = github_repo_slug()
+    raw = gh_api_json(f"repos/{slug}/pulls/{pr_num}", timeout=20, retries=2)
+    meta = {
+        "number": raw.get("number"),
+        "title": raw.get("title") or "",
+        "body": raw.get("body") or "",
+        "url": raw.get("html_url"),
+        "headRefName": (raw.get("head") or {}).get("ref") or "",
+        "isDraft": bool(raw.get("draft")),
+        "mergeable": raw.get("mergeable"),
+        "state": raw.get("state"),
+        "mergedAt": raw.get("merged_at"),
+        "reviewDecision": "",
+    }
+    try:
+        reviews = gh_api_json(f"repos/{slug}/pulls/{pr_num}/reviews", timeout=20, retries=1)
+        latest_by_user = {}
+        for review in reviews if isinstance(reviews, list) else []:
+            user = ((review.get("user") or {}).get("login") or str(review.get("user") or ""))
+            state = (review.get("state") or "").upper()
+            if user and state in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}:
+                latest_by_user[user] = state
+        states = set(latest_by_user.values())
+        if "CHANGES_REQUESTED" in states:
+            meta["reviewDecision"] = "CHANGES_REQUESTED"
+        elif "APPROVED" in states:
+            meta["reviewDecision"] = "APPROVED"
+    except Exception:
+        pass
+    return meta
+
+
+def fetch_issue_meta(issue_num):
+    slug = github_repo_slug()
+    raw = gh_api_json(f"repos/{slug}/issues/{issue_num}", timeout=15, retries=2)
+    return {
+        "body": raw.get("body") or "",
+        "title": raw.get("title") or "",
+        "url": raw.get("html_url") or "",
+        "labels": [
+            label.get("name")
+            for label in raw.get("labels", [])
+            if isinstance(label, dict) and label.get("name")
+        ],
+    }
+
+
+def fetch_issue_body(issue_num: str):
+    return fetch_issue_meta(issue_num).get("body") or ""
+
+
+def fetch_pr_diff(pr_num: int):
+    slug = github_repo_slug()
+    path = f"repos/{slug}/pulls/{pr_num}"
+    try:
+        return gh_api_text(
+            path,
+            headers=["Accept: application/vnd.github.v3.diff"],
+            timeout=30,
+            retries=2,
+        )
+    except Exception as rest_err:
+        try:
+            return run_gh(["pr", "diff", str(pr_num)], timeout=30, retries=1)
+        except Exception as diff_err:
+            raise RuntimeError(f"REST diff failed: {gh_error(rest_err)}; gh pr diff failed: {gh_error(diff_err)}")
 
 
 def list_issues():
@@ -1300,14 +1463,12 @@ def prepare_pr_review(pr_num: int):
     instead of capturing its stdout to a file the user can't watch live."""
     if not (1 <= pr_num <= 9999):
         return {"error": "bad pr number"}
-    # Pull PR body + diff, derive linked issue number from "Closes #N".
+    # Pull PR body + diff via REST so GraphQL EOFs in gh pr view cannot block launch.
     try:
-        body = subprocess.run(
-            ["gh", "pr", "view", str(pr_num), "--json", "body,title", "--jq", ".body + \"\\n\" + .title"],
-            capture_output=True, text=True, timeout=20, check=True,
-        ).stdout
-    except subprocess.CalledProcessError as e:
-        return {"error": f"gh pr view #{pr_num}: {(e.stderr or '').strip() or e}"}
+        meta = fetch_pr_meta(pr_num)
+        body = f"Title: {meta.get('title') or ''}\n\n{meta.get('body') or ''}".strip()
+    except Exception as e:
+        return {"error": f"gh api PR #{pr_num}: {gh_error(e)}"}
     # Try several link patterns; fall back to "no linked issue" if none stick.
     issue_num = None
     for pat in (r"(?:Closes|Fixes|Resolves|Implements)\s+#(\d+)",
@@ -1317,21 +1478,16 @@ def prepare_pr_review(pr_num: int):
             issue_num = m.group(1)
             break
     try:
-        diff = subprocess.run(
-            ["gh", "pr", "diff", str(pr_num)],
-            capture_output=True, text=True, timeout=30, check=True,
-        ).stdout
-    except subprocess.CalledProcessError as e:
-        return {"error": f"gh pr diff #{pr_num}: {(e.stderr or '').strip() or e}"}
+        diff = fetch_pr_diff(pr_num)
+    except Exception as e:
+        return {"error": f"gh api PR diff #{pr_num}: {gh_error(e)}"}
     ibody = ""
+    issue_fetch_error = ""
     if issue_num:
         try:
-            ibody = subprocess.run(
-                ["gh", "issue", "view", issue_num, "--json", "body", "--jq", ".body"],
-                capture_output=True, text=True, timeout=20, check=True,
-            ).stdout
-        except subprocess.CalledProcessError:
-            issue_num = None
+            ibody = fetch_issue_body(issue_num)
+        except Exception as e:
+            issue_fetch_error = gh_error(e)
             ibody = ""
 
     diff_file = STATE_DIR / f"pr-{pr_num}.diff"
@@ -1349,8 +1505,8 @@ def prepare_pr_review(pr_num: int):
            .replace("$ISSUE_NUMBER", issue_num or "n/a")
            .replace("$DIFF", "(see PR diff section below)")
         + "\n\n## PR body\n\n" + body
-        + ("\n\n## Issue body (#" + issue_num + ")\n\n" + ibody if issue_num
-           else "\n\n## Issue body\n\n_no `Closes #N` link in PR body — review based on PR body + diff alone_")
+        + ("\n\n## Issue body (#" + issue_num + ")\n\n" + (ibody or f"_Linked issue fetch failed: {issue_fetch_error}_") if issue_num
+           else "\n\n## Issue body\n\n_no `Closes #N` link in PR body - review based on PR body + diff alone_")
         + "\n\n## PR diff\n\n```diff\n" + diff + "\n```\n"
     )
     prompt_file = STATE_DIR / f"review-prompt-{pr_num}.md"
@@ -1360,6 +1516,7 @@ def prepare_pr_review(pr_num: int):
         "issue": int(issue_num) if issue_num else None,
         "prompt_file": str(prompt_file),
         "diff_size": len(diff),
+        "url": meta.get("url"),
     }
 
 
@@ -1369,22 +1526,19 @@ def prepare_merge(pr_num: int):
     if not (1 <= pr_num <= 9999):
         return {"error": "bad pr number"}
     try:
-        info = subprocess.run(
-            ["gh", "pr", "view", str(pr_num), "--json",
-             "headRefName,url,mergeable,isDraft,reviewDecision"],
-            capture_output=True, text=True, timeout=15, check=True,
-        ).stdout
-        meta = json.loads(info)
-    except subprocess.CalledProcessError as e:
-        return {"error": f"gh pr view #{pr_num}: {(e.stderr or '').strip() or e}"}
+        meta = fetch_pr_meta(pr_num)
+    except Exception as e:
+        return {"error": f"gh api PR #{pr_num}: {gh_error(e)}"}
     branch = meta.get("headRefName") or ""
+    api_path = f"repos/{github_repo_slug()}/pulls/{pr_num}"
     template_path = PROMPTS_DIR / "merge.md"
     if not template_path.exists():
         return {"error": "prompts/merge.md missing"}
     tpl = template_path.read_text()
     prompt = (tpl.replace("$PR_NUMBER", str(pr_num))
                  .replace("$PR_BRANCH", branch)
-                 .replace("$REPO_ROOT", str(REPO_ROOT)))
+                 .replace("$REPO_ROOT", str(REPO_ROOT))
+                 .replace("$REPO_API_PATH", api_path))
     prompt_file = STATE_DIR / f"merge-prompt-{pr_num}.md"
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     prompt_file.write_text(prompt)
@@ -1392,6 +1546,7 @@ def prepare_merge(pr_num: int):
         "pr": pr_num,
         "branch": branch,
         "url": meta.get("url"),
+        "api_path": api_path,
         "prompt_file": str(prompt_file),
     }
 
@@ -1598,25 +1753,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._send_json({"error": "bad num"}, 400)
             if not (1 <= num <= 9999):
                 return self._send_json({"error": "bad num"}, 400)
-            # Skip --jq here — it forces gh to take the GraphQL path on some
-            # commands and that's been hanging / EOF-ing intermittently. Plain
-            # --json comes back over REST and is reliable.
             try:
-                r = subprocess.run(
-                    ["gh", "issue", "view", str(num), "--json", "body,title,labels,url"],
-                    capture_output=True, text=True, timeout=15, check=True,
-                )
-                raw = json.loads(r.stdout)
-                return self._send_json({
-                    "body":   raw.get("body", ""),
-                    "title":  raw.get("title", ""),
-                    "url":    raw.get("url", ""),
-                    "labels": [l.get("name") for l in raw.get("labels", []) if isinstance(l, dict)],
-                })
-            except subprocess.CalledProcessError as e:
-                return self._send_json({"error": (e.stderr or "").strip() or str(e)}, 500)
-            except json.JSONDecodeError as e:
-                return self._send_json({"error": f"bad gh JSON: {e}"}, 500)
+                return self._send_json(fetch_issue_meta(num))
+            except Exception as e:
+                return self._send_json({"error": gh_error(e)}, 500)
 
         if u.path == "/api/issues":
             return self._send_json({"issues": list_issues()})
@@ -1809,21 +1949,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                  env_extra=env_extra,
                                  label=f"codex review · PR #{pr}",
                                  rows=rows, cols=cols)
-                # Best-effort fetch PR URL so the UI can render a clickable link.
-                pr_url = None
-                try:
-                    pr_url = subprocess.run(
-                        ["gh", "pr", "view", str(pr), "--json", "url", "--jq", ".url"],
-                        capture_output=True, text=True, timeout=10, check=True,
-                    ).stdout.strip() or None
-                except Exception:
-                    pass
                 return self._send_json({
                     "sid": sess["sid"],
                     "label": sess["label"],
                     "cwd": sess["cwd"],
                     "pr": pr,
-                    "pr_url": pr_url,
+                    "pr_url": prep.get("url"),
                     "issue": prep.get("issue"),
                     "model": model,
                     "prompt_file": prompt_file,
@@ -1842,6 +1973,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 prompt_file = prep["prompt_file"]
                 branch = prep["branch"]
                 pr_url = prep.get("url")
+                api_path = prep.get("api_path") or f"repos/{github_repo_slug()}/pulls/{pr}"
 
                 model = payload.get("model") or CODEX_MODEL
                 bin_  = payload.get("bin")   or CODEX_BIN
@@ -1850,6 +1982,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 env_extra = {
                     "PR_NUMBER": str(pr),
                     "PR_BRANCH": branch,
+                    "REPO_API_PATH": api_path,
                     "PROMPT_FILE": prompt_file,
                     "PS1": "\\[\\e[31m\\]merge·PR#" + str(pr) + "\\[\\e[0m\\]:\\W$ ",
                 }
@@ -1863,7 +1996,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'ec=$?; '
                     'echo; '
                     'echo "──── {bin} exited (code $ec) — dropping to shell ────"; '
-                    'echo "  PR state: $(gh pr view {pr} --json state,mergedAt --jq \'.state + (if .mergedAt then \" (merged \" + .mergedAt + \")\" else \"\" end)\' 2>/dev/null)"; '
+                    'echo "  PR state: $(gh api {api_path_q} --jq \'.state + (if .merged_at then \" (merged \" + .merged_at + \")\" else \"\" end)\' 2>/dev/null)"; '
                     'exec {shell} -i'
                 ).format(
                     pr=pr,
@@ -1873,6 +2006,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     yolo=yolo,
                     yolo_short="yolo" if ("bypass" in yolo or "yolo" in yolo) else yolo,
                     prompt_q=shlex.quote(prompt_file),
+                    api_path_q=shlex.quote(api_path),
                     shell=shlex.quote(USER_SHELL),
                 )
                 argv = ["bash", "-c", wrapper]
@@ -1887,6 +2021,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "pr": pr,
                     "pr_url": pr_url,
                     "branch": branch,
+                    "api_path": api_path,
                     "model": model,
                     "prompt_file": prompt_file,
                 })
