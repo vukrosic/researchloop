@@ -5,12 +5,16 @@
 Improved:
 
 - `autoresearch report` now prints total estimated cost when any run row has `est_cost_usd`.
+- `autoresearch report --format markdown --out report.md --include-plots` now writes a shareable experiment report with required research sections and SVG plots in `report-assets/`.
+- `autoresearch audit <file.md>` now checks numeric metric claims in markdown against `runs.jsonl` and exits non-zero on unsupported claims.
 - G23 cost accounting is now fully documented: every run records `started_at`, `ended_at`, and `wall_seconds`; optional `.researchloop/cost.yaml` populates `est_cost_usd`.
 
 Tests:
 
 - New: `test:cost`, wired into `npm test`.
 - New: `test:query`, wired into `npm test`; also fixes empty table results to print a header row instead of placeholder text.
+- New: `test:report`, wired into `npm test`.
+- New: `test:audit`, wired into `npm test`.
 
 ## 0.5.1 — 2026-05-20
 

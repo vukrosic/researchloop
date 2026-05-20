@@ -1010,6 +1010,353 @@ function cmdDoctor() {
   }
 }
 
+function formatReportNumber(value, digits = 4) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  return num.toFixed(digits).replace(/\.?0+$/, "");
+}
+
+function formatReportSeconds(value) {
+  const seconds = Math.max(0, Math.round(Number(value) || 0));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const restSeconds = seconds % 60;
+  if (minutes < 60) return restSeconds ? `${minutes}m ${restSeconds}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours}h ${restMinutes}m` : `${hours}h`;
+}
+
+function formatReportCost(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? `$${num.toFixed(4).replace(/\.?0+$/, "")}` : "—";
+}
+
+function markdownCell(value) {
+  return String(value ?? "—").replace(/\|/g, "\\|").replace(/\n/g, "<br>");
+}
+
+function markdownTable(headers, rows) {
+  return [
+    `| ${headers.map(markdownCell).join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...rows.map((row) => `| ${row.map(markdownCell).join(" | ")} |`),
+  ].join("\n");
+}
+
+function xmlEscape(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function runMetricValue(row, metricName) {
+  if (metricName && row?.metrics && Object.prototype.hasOwnProperty.call(row.metrics, metricName)) {
+    const raw = row.metrics[metricName];
+    const value = raw !== null && raw !== undefined && raw !== "" ? Number(raw) : Number.NaN;
+    if (Number.isFinite(value)) return value;
+  }
+  if (row?.metrics) {
+    for (const raw of Object.values(row.metrics)) {
+      const num = raw !== null && raw !== undefined && raw !== "" ? Number(raw) : Number.NaN;
+      if (Number.isFinite(num)) return num;
+    }
+  }
+  const fallback = row?.value !== null && row?.value !== undefined && row?.value !== "" ? Number(row.value) : Number.NaN;
+  return Number.isFinite(fallback) ? fallback : Number.NaN;
+}
+
+function reportRunTimestamp(row) {
+  return row?.timestamp || row?.ended_at || row?.started_at || "";
+}
+
+function compareMetricEntries(a, b, preferHigher) {
+  return preferHigher ? b.value - a.value : a.value - b.value;
+}
+
+function buildReportMetricEntries(runs, metricName, preferHigher) {
+  return runs
+    .filter((row) => row && !row.parse_error)
+    .map((row, index) => ({ row, index, value: runMetricValue(row, metricName) }))
+    .filter((entry) => Number.isFinite(entry.value))
+    .sort((a, b) => compareMetricEntries(a, b, preferHigher));
+}
+
+function renderMetricTrendSvg(entries, metricName, preferHigher) {
+  if (!entries.length) return "";
+  const chronological = entries.slice().sort((a, b) => a.index - b.index);
+  const width = 760;
+  const height = 320;
+  const margin = { left: 58, right: 26, top: 34, bottom: 54 };
+  const plotW = width - margin.left - margin.right;
+  const plotH = height - margin.top - margin.bottom;
+  const values = chronological.map((entry) => entry.value);
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const x = (index) => margin.left + (chronological.length === 1 ? plotW / 2 : (index / (chronological.length - 1)) * plotW);
+  const y = (value) => margin.top + ((max - value) / (max - min)) * plotH;
+  const points = chronological.map((entry, index) => `${x(index).toFixed(1)},${y(entry.value).toFixed(1)}`).join(" ");
+  const best = entries[0];
+  const statusColor = (status) => {
+    const normalized = String(status || "").toLowerCase();
+    if (normalized.includes("fail") || normalized.includes("timeout")) return "#ff8b8b";
+    if (normalized.includes("running")) return "#71a7ff";
+    if (normalized.includes("complete") || normalized.includes("promoted")) return "#62d6a6";
+    return "#f6c177";
+  };
+  const circles = chronological.map((entry, index) => {
+    const isBest = entry.row.id === best.row.id;
+    return `<circle cx="${x(index).toFixed(1)}" cy="${y(entry.value).toFixed(1)}" r="${isBest ? 5 : 4}" fill="${statusColor(entry.row.status)}"><title>${xmlEscape(entry.row.id)} ${xmlEscape(metricName)}=${xmlEscape(formatReportNumber(entry.value))}</title></circle>`;
+  }).join("\n    ");
+  const title = `${metricName || "metric"} over runs (${preferHigher ? "higher is better" : "lower is better"})`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${xmlEscape(title)}">
+  <rect width="100%" height="100%" fill="#071016"/>
+  <text x="${margin.left}" y="22" fill="#edf3f8" font-family="Arial, sans-serif" font-size="16" font-weight="700">${xmlEscape(title)}</text>
+  <line x1="${margin.left}" y1="${margin.top + plotH}" x2="${margin.left + plotW}" y2="${margin.top + plotH}" stroke="#40505c"/>
+  <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + plotH}" stroke="#40505c"/>
+  <text x="10" y="${margin.top + 4}" fill="#9ba7b2" font-family="Arial, sans-serif" font-size="11">${xmlEscape(formatReportNumber(max))}</text>
+  <text x="10" y="${margin.top + plotH}" fill="#9ba7b2" font-family="Arial, sans-serif" font-size="11">${xmlEscape(formatReportNumber(min))}</text>
+  <polyline points="${points}" fill="none" stroke="#71a7ff" stroke-width="2.4"/>
+  ${circles}
+  <text x="${margin.left}" y="${height - 18}" fill="#9ba7b2" font-family="Arial, sans-serif" font-size="12">best: ${xmlEscape(best.row.id)} = ${xmlEscape(formatReportNumber(best.value))}</text>
+</svg>
+`;
+}
+
+function renderCurveOverlaySvg(traces, metricName) {
+  const usable = traces.filter((trace) => Array.isArray(trace.values) && trace.values.length).slice(0, 5);
+  if (!usable.length) return "";
+  const width = 760;
+  const height = 360;
+  const margin = { left: 58, right: 150, top: 34, bottom: 50 };
+  const plotW = width - margin.left - margin.right;
+  const plotH = height - margin.top - margin.bottom;
+  const allPoints = usable.flatMap((trace) => trace.values.map((point) => ({ step: Number(point.step), value: Number(point.value) })));
+  let minX = Math.min(...allPoints.map((point) => point.step));
+  let maxX = Math.max(...allPoints.map((point) => point.step));
+  let minY = Math.min(...allPoints.map((point) => point.value));
+  let maxY = Math.max(...allPoints.map((point) => point.value));
+  if (minX === maxX) {
+    minX = 0;
+    maxX += 1;
+  }
+  if (minY === maxY) {
+    minY -= 1;
+    maxY += 1;
+  }
+  const x = (step) => margin.left + ((step - minX) / (maxX - minX)) * plotW;
+  const y = (value) => margin.top + ((maxY - value) / (maxY - minY)) * plotH;
+  const polylines = usable.map((trace) => {
+    const points = trace.values
+      .map((point) => `${x(Number(point.step)).toFixed(1)},${y(Number(point.value)).toFixed(1)}`)
+      .join(" ");
+    return `<polyline points="${points}" fill="none" stroke="${xmlEscape(trace.color || "#71a7ff")}" stroke-width="2.2"><title>${xmlEscape(trace.id)}</title></polyline>`;
+  }).join("\n  ");
+  const labels = usable.map((trace, index) => {
+    const yPos = margin.top + 22 + index * 22;
+    return `<circle cx="${width - 130}" cy="${yPos - 4}" r="4" fill="${xmlEscape(trace.color || "#71a7ff")}"/><text x="${width - 120}" y="${yPos}" fill="#cad4dc" font-family="Arial, sans-serif" font-size="12">${xmlEscape(trace.id)}</text>`;
+  }).join("\n  ");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${xmlEscape(metricName)} curves">
+  <rect width="100%" height="100%" fill="#071016"/>
+  <text x="${margin.left}" y="22" fill="#edf3f8" font-family="Arial, sans-serif" font-size="16" font-weight="700">${xmlEscape(metricName || "metric")} curves</text>
+  <line x1="${margin.left}" y1="${margin.top + plotH}" x2="${margin.left + plotW}" y2="${margin.top + plotH}" stroke="#40505c"/>
+  <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + plotH}" stroke="#40505c"/>
+  <text x="10" y="${margin.top + 4}" fill="#9ba7b2" font-family="Arial, sans-serif" font-size="11">${xmlEscape(formatReportNumber(maxY))}</text>
+  <text x="10" y="${margin.top + plotH}" fill="#9ba7b2" font-family="Arial, sans-serif" font-size="11">${xmlEscape(formatReportNumber(minY))}</text>
+  ${polylines}
+  ${labels}
+</svg>
+`;
+}
+
+function writeReportPlots(cwd, outPath, entries, traces, metricName, preferHigher) {
+  const reportDir = outPath ? path.dirname(outPath) : cwd;
+  const assetsDir = path.join(reportDir, "report-assets");
+  ensureDir(assetsDir);
+  const written = [];
+  const trendSvg = renderMetricTrendSvg(entries, metricName, preferHigher);
+  if (trendSvg) {
+    const file = path.join(assetsDir, "metric-trend.svg");
+    fs.writeFileSync(file, trendSvg);
+    written.push({ label: "Metric trend", path: path.relative(reportDir, file) });
+  }
+  const curvesSvg = renderCurveOverlaySvg(traces, metricName);
+  if (curvesSvg) {
+    const file = path.join(assetsDir, "loss-curves.svg");
+    fs.writeFileSync(file, curvesSvg);
+    written.push({ label: "Loss curves", path: path.relative(reportDir, file) });
+  }
+  return written;
+}
+
+function renderMarkdownReport(cwd, runs, goal, plan, opts = {}) {
+  const cleanRuns = runs.filter((row) => row && !row.parse_error);
+  const primaryMetric = choosePrimaryMetric(goal, cleanRuns);
+  const preferHigher = String(goal.direction || "").toLowerCase().includes("high");
+  const entries = buildReportMetricEntries(cleanRuns, primaryMetric, preferHigher);
+  const best = entries[0] || null;
+  const worst = entries[entries.length - 1] || null;
+  const traces = buildRunTraces(cwd, cleanRuns, primaryMetric, preferHigher);
+  const plotRefs = opts.includePlots ? writeReportPlots(cwd, opts.outPath, entries, traces, primaryMetric, preferHigher) : [];
+  const completeRuns = cleanRuns.filter((row) => ["complete", "completed", "promoted"].includes(String(row.status || "").toLowerCase()));
+  const failedRuns = cleanRuns.filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return status.includes("fail") || status.includes("timeout") || status.includes("killed") || status.includes("no_metric");
+  });
+  const totalWallSeconds = cleanRuns.reduce((sum, row) => sum + (Number(row.wall_seconds) || 0), 0);
+  const totalCost = cleanRuns.reduce((sum, row) => sum + (Number(row.est_cost_usd) || 0), 0);
+  const totalGpuHours = cleanRuns.reduce((sum, row) => sum + (Number(row.gpu_hours) || 0), 0);
+  const baselineRuns = cleanRuns.filter((row) => String(row.id || "").toLowerCase().includes("baseline") || String(row.agent || "").toLowerCase().includes("baseline"));
+  const topRows = entries.slice(0, 5).map((entry, rank) => [
+    rank + 1,
+    `\`${entry.row.id}\``,
+    entry.row.status || "unknown",
+    formatReportNumber(entry.value),
+    reportRunTimestamp(entry.row) || "—",
+    formatReportSeconds(entry.row.wall_seconds),
+    formatReportCost(entry.row.est_cost_usd),
+  ]);
+  const curveRows = traces.slice(0, 8).map((trace) => {
+    const first = Number(trace.values?.[0]?.value);
+    const final = Number(trace.final);
+    const delta = Number.isFinite(first) && Number.isFinite(final)
+      ? (preferHigher ? final - first : first - final)
+      : Number.NaN;
+    return [
+      `\`${trace.id}\``,
+      trace.values.length,
+      formatReportNumber(first),
+      formatReportNumber(final),
+      formatReportNumber(delta),
+      trace.status || "unknown",
+    ];
+  });
+  const discardedRows = failedRuns.slice(-8).reverse().map((row) => [
+    `\`${row.id}\``,
+    row.status || "unknown",
+    reportRunTimestamp(row) || "—",
+    row.command || "—",
+  ]);
+  const appendixRows = cleanRuns.map((row) => [
+    `\`${row.id}\``,
+    row.status || "unknown",
+    primaryMetric ? formatReportNumber(runMetricValue(row, primaryMetric)) : "—",
+    reportRunTimestamp(row) || "—",
+    row.parent_id ? `\`${row.parent_id}\`` : "—",
+  ]);
+
+  const lines = [];
+  lines.push("# AutoResearch-AI Experiment Report");
+  lines.push("");
+  lines.push(`Generated: ${new Date().toISOString()}`);
+  lines.push(`Repository: \`${cwd}\``);
+  lines.push(`Ledger: \`.researchloop/scratchpad/runs.jsonl\``);
+  lines.push("");
+  lines.push("## Goal");
+  lines.push("");
+  lines.push(goal.goal || "No goal text recorded.");
+  lines.push("");
+  lines.push(`- Target metric: ${primaryMetric ? `\`${primaryMetric}\`` : "not detected"}`);
+  lines.push(`- Direction: ${preferHigher ? "higher is better" : "lower is better"}`);
+  lines.push(`- Current best note: ${goal.currentBest || "not recorded"}`);
+  lines.push(`- Time budget: ${normalizeTimeBudget(plan.timeBudget) || "not recorded"}`);
+  lines.push("");
+  lines.push("## Baseline");
+  lines.push("");
+  lines.push(`- Baseline command: ${goal.baseline ? `\`${goal.baseline}\`` : "not recorded"}`);
+  lines.push(`- Evaluation command: ${goal.evaluation ? `\`${goal.evaluation}\`` : "not recorded"}`);
+  if (baselineRuns.length) {
+    lines.push("");
+    lines.push(markdownTable(["Run", "Status", primaryMetric || "Metric", "Timestamp"], baselineRuns.map((row) => [
+      `\`${row.id}\``,
+      row.status || "unknown",
+      primaryMetric ? formatReportNumber(runMetricValue(row, primaryMetric)) : "—",
+      reportRunTimestamp(row) || "—",
+    ])));
+  } else {
+    lines.push("");
+    lines.push("No baseline run id was detected in the ledger. Record one with `autoresearch baseline` before treating wins as publishable.");
+  }
+  lines.push("");
+  lines.push("## Best Run");
+  lines.push("");
+  if (best) {
+    lines.push(`Best recorded run for \`${primaryMetric}\` is \`${best.row.id}\` with value ${formatReportNumber(best.value)}.`);
+    if (worst && worst.row.id !== best.row.id) {
+      const delta = preferHigher ? best.value - worst.value : worst.value - best.value;
+      lines.push(`Between best run \`${best.row.id}\` and worst recorded run \`${worst.row.id}\`, the spread is ${formatReportNumber(delta)} ${primaryMetric}.`);
+    }
+    lines.push("");
+    lines.push(markdownTable(["Rank", "Run", "Status", primaryMetric, "Timestamp", "Wall time", "Est. cost"], topRows));
+  } else {
+    lines.push("No numeric run metric was found yet.");
+  }
+  lines.push("");
+  lines.push("## Sweep Summary");
+  lines.push("");
+  lines.push(markdownTable(["Metric", "Value"], [
+    ["Runs total", cleanRuns.length],
+    ["Completed", completeRuns.length],
+    ["Discarded / failed", failedRuns.length],
+    ["Parse errors", runs.filter((row) => row?.parse_error).length],
+    ["Total wall time", formatReportSeconds(totalWallSeconds)],
+    ["Estimated cost", totalCost > 0 ? formatReportCost(totalCost) : "—"],
+    ["GPU-hours", totalGpuHours > 0 ? formatReportNumber(totalGpuHours) : "—"],
+  ]));
+  lines.push("");
+  lines.push("## Loss Curves");
+  lines.push("");
+  if (plotRefs.length) {
+    for (const ref of plotRefs) {
+      lines.push(`![${ref.label}](${ref.path})`);
+      lines.push("");
+    }
+  } else if (opts.includePlots) {
+    lines.push("No plottable metric series was available for SVG output.");
+    lines.push("");
+  }
+  if (curveRows.length) {
+    lines.push(markdownTable(["Run", "Points", "First", "Final", preferHigher ? "Gain" : "Drop", "Status"], curveRows));
+  } else {
+    lines.push("No metric curves were found. Runs with stdout metrics still appear in the best-run table.");
+  }
+  lines.push("");
+  lines.push("## Discarded Results");
+  lines.push("");
+  if (discardedRows.length) {
+    lines.push(markdownTable(["Run", "Status", "Timestamp", "Command"], discardedRows));
+  } else {
+    lines.push("No failed, timed-out, killed, or no-metric runs are recorded.");
+  }
+  lines.push("");
+  lines.push("## Open Questions");
+  lines.push("");
+  if (best) {
+    lines.push(`- Reproduce best run \`${best.row.id}\` with \`autoresearch verify --id ${best.row.id}\` before claiming it as real.`);
+  } else {
+    lines.push("- Record at least one numeric run before making a research claim.");
+  }
+  lines.push("- If the result depends on random seeds, run `autoresearch run --seeds N` and compare the aggregate row.");
+  lines.push("- If cost matters, keep `.researchloop/cost.yaml` current so future reports include a real estimate.");
+  lines.push("- Promote or discard the next candidate explicitly so the loop has a clean next state.");
+  lines.push("");
+  lines.push("## Appendix: Run Ledger Index");
+  lines.push("");
+  if (appendixRows.length) {
+    lines.push(markdownTable(["Run", "Status", primaryMetric || "Metric", "Timestamp", "Parent"], appendixRows));
+  } else {
+    lines.push("No runs recorded.");
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 function cmdReport() {
   const cwd = targetDir();
   const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
@@ -1017,6 +1364,9 @@ function cmdReport() {
     console.log("No run ledger found. Run `autoresearch init` first.");
     return;
   }
+  const format = String(option("--format", "text")).toLowerCase();
+  const outFile = option("--out", null);
+  const includePlots = hasFlag("--include-plots");
   const rows = fs.readFileSync(ledger, "utf8").split("\n").filter(Boolean);
   const parsed = rows.map((row) => {
     try {
@@ -1025,6 +1375,27 @@ function cmdReport() {
       return { parse_error: true, raw: row };
     }
   });
+  if (format === "markdown" || outFile || includePlots) {
+    const outPath = outFile
+      ? path.resolve(cwd, String(outFile))
+      : null;
+    const goal = parseGoalFile(path.join(cwd, ".researchloop", "goal.md"));
+    const plan = parsePlanFile(path.join(cwd, ".researchloop", "plan.md"));
+    const markdown = `${renderMarkdownReport(cwd, parsed, goal, plan, { includePlots, outPath })}\n`;
+    if (outPath) {
+      ensureDir(path.dirname(outPath));
+      fs.writeFileSync(outPath, markdown);
+      console.log(`report: ${path.relative(cwd, outPath)}`);
+    } else {
+      process.stdout.write(markdown);
+    }
+    return;
+  }
+  if (format !== "text") {
+    console.error("Usage: autoresearch report [--format text|markdown] [--out report.md] [--include-plots] [--dir PATH]");
+    process.exitCode = 1;
+    return;
+  }
   const errors = parsed.filter((row) => row.parse_error).length;
   const complete = parsed.filter((row) => row.status === "complete" || row.status === "completed").length;
   console.log(`runs: ${rows.length}`);
@@ -1045,6 +1416,157 @@ function cmdReport() {
   if (parsed.length) {
     const last = parsed[parsed.length - 1];
     console.log(`last: ${JSON.stringify(last, null, 2)}`);
+  }
+}
+
+function escapeRegExp(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function collectLedgerMetricValues(runs) {
+  const values = [];
+  for (const row of runs) {
+    if (!row || row.parse_error) continue;
+    const metrics = row.metrics || {};
+    for (const [metric, raw] of Object.entries(metrics)) {
+      if (!isNumericMetric(raw)) continue;
+      values.push({ runId: row.id, metric, value: Number(raw) });
+    }
+    if (isNumericMetric(row.value)) {
+      values.push({ runId: row.id, metric: "value", value: Number(row.value) });
+    }
+  }
+  return values;
+}
+
+function findClaimMatch({ claimValue, isPercent, lineIds, metricValues, tolerance }) {
+  const candidateValues = isPercent ? [claimValue, claimValue / 100] : [claimValue];
+  const directPool = lineIds.length
+    ? metricValues.filter((entry) => lineIds.includes(String(entry.runId)))
+    : metricValues;
+  for (const wanted of candidateValues) {
+    for (const entry of directPool) {
+      if (Math.abs(entry.value - wanted) <= tolerance) {
+        return `${entry.runId}:${entry.metric}`;
+      }
+    }
+  }
+
+  if (lineIds.length >= 2) {
+    const byId = new Map();
+    for (const entry of metricValues) {
+      if (!byId.has(String(entry.runId))) byId.set(String(entry.runId), []);
+      byId.get(String(entry.runId)).push(entry);
+    }
+    for (let i = 0; i < lineIds.length; i += 1) {
+      for (let j = i + 1; j < lineIds.length; j += 1) {
+        const left = byId.get(String(lineIds[i])) || [];
+        const right = byId.get(String(lineIds[j])) || [];
+        for (const a of left) {
+          for (const b of right) {
+            if (a.metric !== b.metric) continue;
+            const delta = Math.abs(a.value - b.value);
+            for (const wanted of candidateValues) {
+              if (Math.abs(delta - wanted) <= tolerance) {
+                return `${a.runId},${b.runId}:${a.metric}_delta`;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function auditMarkdownClaims(markdown, runs, tolerance) {
+  const metricValues = collectLedgerMetricValues(runs);
+  const knownRunIds = [...new Set(runs.filter((row) => row && !row.parse_error && row.id).map((row) => String(row.id)))];
+  const metricKeywords = new Set(["loss", "accuracy", "acc", "perplexity", "ppl", "f1", "precision", "recall", "auc", "bleu", "rouge", "metric"]);
+  for (const entry of metricValues) {
+    metricKeywords.add(String(entry.metric).toLowerCase());
+  }
+  const claims = [];
+  const lines = String(markdown || "").split(/\r?\n/);
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    const originalLine = lines[idx];
+    const lower = originalLine.toLowerCase();
+    if (![...metricKeywords].some((keyword) => lower.includes(keyword))) continue;
+
+    const lineIds = knownRunIds
+      .filter((id) => originalLine.includes(id))
+      .sort((a, b) => originalLine.indexOf(a) - originalLine.indexOf(b));
+    let scanLine = originalLine.replace(/`[^`]*`/g, " ");
+    for (const id of knownRunIds) {
+      scanLine = scanLine.replace(new RegExp(escapeRegExp(id), "g"), " ");
+    }
+    const numberRegex = /(?<![A-Za-z_])-?\d+(?:\.\d+)?%?/g;
+    const matches = scanLine.match(numberRegex) || [];
+    for (const raw of matches) {
+      const isPercent = raw.endsWith("%");
+      const claimValue = Number(raw.replace(/%$/, ""));
+      if (!Number.isFinite(claimValue)) continue;
+      const matched = findClaimMatch({ claimValue, isPercent, lineIds, metricValues, tolerance });
+      claims.push({
+        line: idx + 1,
+        value: raw,
+        matched,
+        text: originalLine.trim(),
+      });
+    }
+  }
+  return claims;
+}
+
+function cmdAudit() {
+  const cwd = targetDir();
+  const fileArg = positionalText(["--dir", "--tolerance"]);
+  const tolerance = Number(option("--tolerance", "0.001"));
+  const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+
+  if (!fileArg) {
+    console.error("Usage: autoresearch audit <file.md> [--tolerance N] [--dir PATH]");
+    process.exitCode = 1;
+    return;
+  }
+  if (!Number.isFinite(tolerance) || tolerance < 0) {
+    console.error("audit: --tolerance must be a non-negative number");
+    process.exitCode = 1;
+    return;
+  }
+  if (!fs.existsSync(ledger)) {
+    console.error("No run ledger found.");
+    process.exitCode = 1;
+    return;
+  }
+  const filePath = path.resolve(cwd, String(fileArg));
+  if (!fs.existsSync(filePath)) {
+    console.error(`audit: file not found: ${fileArg}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const runs = parseRunsLedger(ledger);
+  const claims = auditMarkdownClaims(readTextIfExists(filePath), runs, tolerance);
+  if (!claims.length) {
+    console.log("No numeric metric claims found.");
+    return;
+  }
+
+  console.log(markdownTable(
+    ["claim_line", "claim_value", "matched_run_id_or_null", "text"],
+    claims.map((claim) => [
+      claim.line,
+      claim.value,
+      claim.matched || "null",
+      claim.text,
+    ])
+  ));
+  const unmatched = claims.filter((claim) => !claim.matched);
+  if (unmatched.length) {
+    console.error(`audit: ${unmatched.length} unmatched numeric metric claim(s)`);
+    process.exitCode = 1;
   }
 }
 
@@ -1632,7 +2154,7 @@ function summarizeTraces(traces, preferHigher = false) {
 
   const improved = traces
     .map((trace) => {
-      const first = Number(trace.values?.[0]);
+      const first = Number(trace.values?.[0]?.value);
       const final = Number(trace.final);
       return {
         trace,
@@ -1665,7 +2187,8 @@ function buildRunTraces(cwd, runs, primaryMetric, preferHigher, customRegexSourc
     .filter((run) => !run.parse_error)
     .map((run, index) => {
       const values = readRunMetricSeries(cwd, run, primaryMetric, customRegexSource);
-      const finalFromMetrics = Number(run?.metrics?.[primaryMetric]);
+      const metricRaw = run?.metrics?.[primaryMetric];
+      const finalFromMetrics = metricRaw !== null && metricRaw !== undefined && metricRaw !== "" ? Number(metricRaw) : Number.NaN;
       const final = Number.isFinite(finalFromMetrics)
         ? finalFromMetrics
         : Number(values.length ? values[values.length - 1].value : Number.NaN);
@@ -1734,7 +2257,7 @@ function readSystemSummary() {
 }
 
 function isNumericMetric(value) {
-  return Number.isFinite(Number(value));
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
 }
 
 function choosePrimaryMetric(goal, runs) {
@@ -5524,7 +6047,8 @@ Usage:
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
   autoresearch dashboard [--dir PATH] [--host HOST] [--port PORT]
-  autoresearch report [--dir PATH]
+  autoresearch report [--dir PATH] [--format text|markdown] [--out report.md] [--include-plots]
+  autoresearch audit <file.md> [--tolerance N] [--dir PATH]
   autoresearch baseline-status [--dir PATH]
   autoresearch baseline --lock [--dir PATH]
   autoresearch baseline --unlock [--dir PATH] [--format json]
@@ -5598,6 +6122,8 @@ async function main() {
     cmdDashboard();
   } else if (command === "report") {
     cmdReport();
+  } else if (command === "audit") {
+    cmdAudit();
   } else if (command === "baseline-status") {
     cmdBaselineStatus();
   } else if (command === "failures") {

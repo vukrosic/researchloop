@@ -228,6 +228,22 @@ Then summarize the current state:
 autoresearch report
 ```
 
+For a shareable lab-note artifact:
+
+```bash
+autoresearch report --format markdown --out report.md --include-plots
+```
+
+That writes `report.md` plus `report-assets/` SVG plots from the run ledger. Use it after a baseline and a few candidate runs to send a compact update to an advisor, teammate, or future session.
+
+Before sharing the report, audit the numeric claims:
+
+```bash
+autoresearch audit report.md
+```
+
+The audit checks loss, accuracy, perplexity, F1, and named metric claims against `runs.jsonl`.
+
 ## 9. Open the dashboard
 
 Serve a local dashboard for the current repo:

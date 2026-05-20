@@ -22,6 +22,8 @@ AutoResearch-AI should let an agent take a real ML repo through this loop withou
 
 Every goal below should strengthen one step of that loop.
 
+**Product sequencing note.** For researcher usefulness, prefer features that create durable evidence before features that only increase orchestration power. The default order should be: eval/metrics → curves/artifacts → report/audit/dashboard → queue/remote runners. A remote runner without a trustworthy report is just a faster way to create unreviewed logs.
+
 ---
 
 ## How to use this doc
@@ -50,7 +52,7 @@ Goals are organized into tiers. Tier 0 must land before any tier above it can sh
 | **2** | Evaluation layer | G04, G05, G06 | 2 (sequential within: G04 → G05/G06) |
 | **3** | Reliability & reproducibility | G09, G10, G11, G12, G31, G32 | 3–4 |
 | **4** | Scale (sweeps + multi-agent queue + query) | G07, G08, G18, G19, ~~G13~~ | 3–4 |
-| **5** | Reporting & dashboard | G20, G21, ~~G23~~, G15, G16, G17 | 3 |
+| **5** | Reporting & dashboard | ~~G20~~, ~~G21~~, ~~G23~~, G15, G16, G17 | 3 |
 | **6** | Integrations | G22, G24 | 2 |
 
 **Gate.** [G00 — Dogfood loop on `llm-research-kit`](#g00--dogfood-loop-on-llm-research-kit) must pass before declaring 0.4.0 done. It uses whatever subset of Tier 1+2 has shipped.
@@ -664,6 +666,8 @@ The child process receives `RESEARCHLOOP_RUN_DIR` as an environment variable so 
 
 ### G20 — Auto-generated experiment report
 
+**Status.** Shipped. `autoresearch report --format markdown --out report.md --include-plots` writes a paper-shaped report plus SVG assets from the run ledger, and `scripts/test-report.sh` is wired into `npm test`.
+
 **Motivation.** A scientist's deliverable is a report, not a JSONL. We should be able to render the current state of the loop into a paper-shaped markdown.
 
 **Deliverables.**
@@ -678,13 +682,15 @@ The child process receives `RESEARCHLOOP_RUN_DIR` as an environment variable so 
 
 **Test plan.** `scripts/test-report.sh` against a frozen ledger; assert section headers, run-id references, SVG file count.
 
-**Files owned.** `bin/researchloop.js`, `templates/prompts/report.md`, `scripts/test-report.sh`.
+**Files owned.** `bin/researchloop.js`, `scripts/test-report.sh`, `examples/fixtures/report/`.
 
-**Depends on.** G04. **Effort.** M. **Agent role.** Worker — CLI feature.
+**Depends on.** Existing run metrics and `metric_history`. G04 makes this richer but is not a hard prerequisite for the first useful version. **Effort.** M. **Agent role.** Worker — CLI feature.
 
 ---
 
 ### G21 — Claim audit
+
+**Status.** Shipped. `autoresearch audit <file.md>` scans markdown metric claims against `runs.jsonl`, supports direct run metric matches and run-to-run metric deltas, and `scripts/test-audit.sh` is wired into `npm test`.
 
 **Motivation.** Agent-written reports often hallucinate gains. Every numeric claim should resolve to a ledger row.
 

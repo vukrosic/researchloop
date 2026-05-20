@@ -178,7 +178,8 @@ The startup plan is in `docs/startup/`.
 - `autoresearch inspect` now writes a `multi_gpu` block into `repo-profile.json` that detects torchrun, accelerate, deepspeed, and pytorch-lightning launchers and emits suggested command shapes.
 - `autoresearch record` appends a structured run result to `runs.jsonl` (use for manual rows).
 - `autoresearch compare` ranks runs by a chosen metric and reports GPU-hours and peak memory when present.
-- `autoresearch report` summarizes the run ledger, including total wall time and estimated cost when `.researchloop/cost.yaml` is configured.
+- `autoresearch report` summarizes the run ledger, including total wall time and estimated cost when `.researchloop/cost.yaml` is configured. Use `--format markdown --out report.md --include-plots` to write a shareable experiment report with SVG plots.
+- `autoresearch audit <file.md>` checks numeric metric claims in a markdown report against `runs.jsonl` and exits non-zero on unmatched claims.
 - `autoresearch dashboard` starts a local localhost dashboard for experiment tracking.
 - `autoresearch doctor` checks basic local tooling.
 
@@ -217,6 +218,8 @@ New run rows then include `est_cost_usd`, computed as `wall_seconds / 3600 * hou
 - `autoresearch data-fingerprint` hashes input data for reproducibility.
 - `autoresearch model-card --id <run-id>` emits a model-card markdown for a run.
 - `autoresearch digest --since <duration>` summarizes recent activity in text / json / markdown.
+- `autoresearch report --format markdown --out report.md --include-plots` writes a lab-note-ready experiment report with Goal, Baseline, Best run, Sweep summary, Loss curves, Discarded results, Open questions, and an Appendix of run ids.
+- `autoresearch audit report.md` verifies that numeric loss/accuracy/perplexity/F1-style claims resolve to ledger metrics or metric deltas.
 
 ### Tests
 
@@ -242,6 +245,8 @@ New run rows then include `est_cost_usd`, computed as `wall_seconds / 3600 * hou
 - `npm run test:gpu-ledger` checks the GPU fields are present (and null) on non-GPU hosts and that `compare` skips GPU lines.
 - `npm run test:cost` checks `started_at`, `ended_at`, `wall_seconds`, `est_cost_usd` arithmetic, and report cost totals.
 - `npm run test:query` checks `autoresearch query` filtering, sorting, limits, nested fields, JSONL output, empty results, and syntax errors.
+- `npm run test:report` checks markdown report generation, required sections, run-id references, and SVG plot assets.
+- `npm run test:audit` checks supported claims pass, fabricated claims fail, and generated reports audit cleanly.
 - `npm run test:verify` checks `verify --id` reproduces deterministic runs and reports drift when the recorded metric does not match.
 - `npm run test:preflight` checks preflight gates (command, safety, metric, disk, memory, GPU, baseline) in both text and JSON outputs.
 - `npm run test:multi-gpu-detect` checks torchrun / accelerate / deepspeed / pytorch-lightning launchers are detected in `inspect`.
