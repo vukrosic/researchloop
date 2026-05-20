@@ -180,8 +180,27 @@ The startup plan is in `docs/startup/`.
 - `autoresearch compare` ranks runs by a chosen metric and reports GPU-hours and peak memory when present.
 - `autoresearch report` summarizes the run ledger, including total wall time and estimated cost when `.researchloop/cost.yaml` is configured. Use `--format markdown --out report.md --include-plots` to write a shareable experiment report with SVG plots.
 - `autoresearch audit <file.md>` checks numeric metric claims in a markdown report against `runs.jsonl` and exits non-zero on unmatched claims.
+- `autoresearch curves --id <run-id>` prints the streamed metric series as a unicode sparkline plus min/max/final stats. `--format json|jsonl` for scripting. Curves are now written live to `metrics.jsonl` during the run; the dashboard exposes them at `/api/curves?run=<id>`.
 - `autoresearch dashboard` starts a local localhost dashboard for experiment tracking.
 - `autoresearch doctor` checks basic local tooling.
+
+### Evaluation rules (`.researchloop/eval.yaml`)
+
+Two sections are active today; both are optional.
+
+```yaml
+# Kill a diverged run before it burns the full timeout.
+early_stop:
+  - {metric: train_loss, rule: nan_or_inf, action: kill}
+  - {metric: val_loss,   rule: ">10x_baseline_after_step_500", action: kill}
+
+# Auto-flip each run's status after it ends.
+gates:
+  - {metric: val_loss, op: "<", value: "{baseline}-0.02", action: promote}
+  - {metric: val_loss, op: ">", value: "{baseline}",      action: discard}
+```
+
+Runs that trigger an early-stop rule end with `status: "killed_by_rule"` and a `kill_reason` field on the row. Runs that match a gate end with `status: promoted | kept | discarded` and `gate_reasons`.
 
 GPU stats are captured automatically per run when `nvidia-smi` is present: `gpu_util_max_pct`, `gpu_util_mean_pct`, `gpu_memory_peak_mb`, `gpu_memory_total_mb`, and `gpu_hours` are written into the ledger row. The fields exist (null) on non-GPU hosts so the schema stays stable.
 
@@ -251,6 +270,9 @@ New run rows then include `est_cost_usd`, computed as `wall_seconds / 3600 * hou
 - `npm run test:preflight` checks preflight gates (command, safety, metric, disk, memory, GPU, baseline) in both text and JSON outputs.
 - `npm run test:multi-gpu-detect` checks torchrun / accelerate / deepspeed / pytorch-lightning launchers are detected in `inspect`.
 - `npm run test:resume` checks the resume command finds the latest failed run, exposes the resume env vars to the child, and records the `resume_of` pointer.
+- `npm run test:early-stop` checks that `nan_or_inf` and `>Nx_baseline_after_step_K` early-stop rules kill the child process group within seconds, record `killed_by_rule` + `kill_reason`, and stream `metrics.jsonl` before the kill.
+- `npm run test:gates` checks promotion gates flip `status` to `promoted | kept | discarded` and write `gate_reasons` for each rule.
+- `npm run test:curves` checks `autoresearch curves --id <id>` reads the streamed series, prints a sparkline and summary, and emits JSON/JSONL.
 
 ## Contributing
 

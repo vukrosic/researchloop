@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+New:
+
+- **Streaming metric capture (G06 minimal).** `autoresearch run` and `baseline` now parse the primary metric line-by-line as the child process runs, and stream every sample to `metrics.jsonl` in the run directory while the process is still alive. Final `metric_history` is derived from the streamed series — log-rescan only kicks in as a fallback.
+- **NaN / divergence early-stop (G11).** New `.researchloop/eval.yaml` section `early_stop:` with `nan_or_inf` and `>Nx_baseline_after_step_K` rules. On trigger the runner SIGTERMs the entire process group and SIGKILLs after 2 s, then writes `status: "killed_by_rule"` and `kill_reason: "<rule>"` on the row. Saves real GPU-hours when a learning rate diverges training.
+- **Promotion gates (G05).** New `eval.yaml` section `gates:` with rules like `{metric: val_loss, op: "<", value: "{baseline}-0.02", action: promote|discard}`. After a run completes, the row's `status` auto-flips to `promoted | kept | discarded` and `gate_reasons` records which gate fired.
+- **`eval.yaml` schema (G04 minimal).** New template `.researchloop/eval.yaml` is now scaffolded by `autoresearch init`. Reserves `metrics`, `curves`, `checkpoint_glob`, `resume_flag_template`, and `retry` keys for future goals.
+- **`autoresearch curves --id <run-id>`.** Prints the streamed metric series as a unicode sparkline plus summary stats (min, max, final, non-finite count). `--format json|jsonl` for scripting.
+- **`/api/curves?run=<id>`** endpoint on the dashboard server returns the streamed series as JSON, ready for chart UIs.
+
+Process:
+
+- `spawnCommand` now starts the child in its own process group (`detached:true`) so SIGTERM/SIGKILL reach grandchildren (e.g. `python` spawned by a shell wrapper). Previously a `sleep` in a wrapper could hold the stdout pipe open after the parent shell exited.
+
 Improved:
 
 - `autoresearch report` now prints total estimated cost when any run row has `est_cost_usd`.
@@ -11,6 +24,7 @@ Improved:
 
 Tests:
 
+- New: `test:early-stop`, `test:gates`, `test:curves`, all wired into `npm test`.
 - New: `test:cost`, wired into `npm test`.
 - New: `test:query`, wired into `npm test`; also fixes empty table results to print a header row instead of placeholder text.
 - New: `test:report`, wired into `npm test`.

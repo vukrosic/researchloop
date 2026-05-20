@@ -2458,6 +2458,98 @@ function buildDashboardState(cwd) {
   };
 }
 
+function renderAsciiSparkline(values) {
+  const finite = values.filter((v) => Number.isFinite(v));
+  if (finite.length < 2) return finite.length === 1 ? "·" : "";
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  const span = max - min || 1;
+  const ramp = "▁▂▃▄▅▆▇█";
+  return values.map((v) => {
+    if (!Number.isFinite(v)) return "?";
+    const idx = Math.min(ramp.length - 1, Math.max(0, Math.round(((v - min) / span) * (ramp.length - 1))));
+    return ramp[idx];
+  }).join("");
+}
+
+function cmdCurves() {
+  const cwd = targetDir();
+  const runId = option("--id", positionalText(["--id", "--format", "--dir", "--metric"])) || null;
+  const format = String(option("--format", "text")).toLowerCase();
+  if (!runId) {
+    console.error("autoresearch curves: missing --id <run-id>");
+    process.exitCode = 1;
+    return;
+  }
+  const payload = readCurvesForRun(cwd, runId);
+  if (format === "json" || format === "jsonl") {
+    if (format === "jsonl") {
+      for (const point of payload.series) {
+        console.log(JSON.stringify(point));
+      }
+      return;
+    }
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+  if (payload.error) {
+    console.error(`autoresearch curves: ${payload.error}`);
+    process.exitCode = 1;
+    return;
+  }
+  const series = payload.series;
+  if (series.length === 0) {
+    console.log(`run: ${payload.run_id}`);
+    console.log("series: empty (no metric samples were streamed)");
+    return;
+  }
+  const values = series.map((p) => Number(p.value));
+  const finite = values.filter((v) => Number.isFinite(v));
+  const metricName = series[0].metric || "metric";
+  const min = finite.length ? Math.min(...finite) : null;
+  const max = finite.length ? Math.max(...finite) : null;
+  const last = values.length ? values[values.length - 1] : null;
+  const fmt = (v) => (Number.isFinite(v) ? Number(v).toFixed(4).replace(/\.?0+$/, "") : String(v));
+  console.log(`run: ${payload.run_id}`);
+  console.log(`metric: ${metricName}`);
+  console.log(`samples: ${series.length}`);
+  if (min !== null) console.log(`min: ${fmt(min)}`);
+  if (max !== null) console.log(`max: ${fmt(max)}`);
+  if (last !== null) console.log(`final: ${fmt(last)}`);
+  const non = values.length - finite.length;
+  if (non > 0) console.log(`non_finite: ${non}`);
+  const spark = renderAsciiSparkline(values);
+  if (spark) console.log(`curve: ${spark}`);
+}
+
+function readCurvesForRun(cwd, runId) {
+  if (!runId) return { run_id: null, error: "missing run id", series: [] };
+  const safeId = String(runId).replace(/[^A-Za-z0-9._-]/g, "");
+  if (safeId !== String(runId)) {
+    return { run_id: runId, error: "invalid run id", series: [] };
+  }
+  const file = path.join(cwd, ".researchloop", "scratchpad", "runs", safeId, "metrics.jsonl");
+  if (!fs.existsSync(file)) {
+    return { run_id: safeId, error: "no metrics.jsonl for run", series: [] };
+  }
+  const series = [];
+  const raw = fs.readFileSync(file, "utf8").trim();
+  if (!raw) return { run_id: safeId, series: [] };
+  for (const line of raw.split("\n")) {
+    try {
+      const obj = JSON.parse(line);
+      if (obj && typeof obj === "object" && Number.isFinite(Number(obj.step))) {
+        series.push({
+          metric: obj.metric ?? null,
+          step: Number(obj.step),
+          value: obj.value === null || obj.value === undefined ? null : Number(obj.value),
+        });
+      }
+    } catch { /* skip malformed */ }
+  }
+  return { run_id: safeId, series };
+}
+
 function cmdDashboard() {
   const cwd = targetDir();
   const host = String(option("--host", "127.0.0.1"));
@@ -2512,6 +2604,16 @@ function cmdDashboard() {
       res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
       const state = buildDashboardState(cwd);
       res.end(`${JSON.stringify(state.logTail || null, null, 2)}\n`);
+      return;
+    }
+    if (url.pathname === "/api/curves") {
+      // Returns the streamed metric series for a single run (G06 foundation).
+      // Reads .researchloop/scratchpad/runs/<id>/metrics.jsonl, which is now
+      // written line-by-line during the run by spawnCommand's onLine hook.
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      const runId = url.searchParams.get("run") || url.searchParams.get("id");
+      const payload = readCurvesForRun(cwd, runId);
+      res.end(`${JSON.stringify(payload, null, 2)}\n`);
       return;
     }
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
@@ -2801,6 +2903,216 @@ function parseMetricFromOutput(output, metricName, customRegexSource) {
   return null;
 }
 
+// Eval config (G04/G05/G11) — parses .researchloop/eval.yaml without a YAML dep.
+// Only `gates:` and `early_stop:` are wired today; other keys are reserved.
+
+function loadEvalConfig(cwd) {
+  const evalFile = path.join(cwd, ".researchloop", "eval.yaml");
+  if (!fs.existsSync(evalFile)) {
+    return { earlyStop: [], gates: [], present: false };
+  }
+  const raw = fs.readFileSync(evalFile, "utf8");
+  return {
+    earlyStop: parseEvalListSection(raw, "early_stop"),
+    gates: parseEvalListSection(raw, "gates"),
+    present: true,
+  };
+}
+
+function parseEvalListSection(text, sectionName) {
+  const lines = text.split(/\r?\n/);
+  const out = [];
+  let inSection = false;
+  const headRe = new RegExp(`^${sectionName}\\s*:`);
+  const flowEmptyRe = new RegExp(`^${sectionName}\\s*:\\s*\\[\\s*\\]\\s*$`);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!inSection) {
+      if (flowEmptyRe.test(line)) {
+        return [];
+      }
+      if (headRe.test(line)) {
+        inSection = true;
+      }
+      continue;
+    }
+    if (/^\S/.test(line) && !/^\s*-/.test(line)) {
+      break;
+    }
+    const item = line.match(/^\s*-\s*(\{.*\})\s*$/);
+    if (item) {
+      const parsed = parseInlineObject(item[1]);
+      if (parsed) out.push(parsed);
+    }
+  }
+  return out;
+}
+
+function parseInlineObject(text) {
+  const inner = text.replace(/^\{|\}$/g, "").trim();
+  if (!inner) return null;
+  const parts = [];
+  let depth = 0;
+  let buf = "";
+  let inStr = null;
+  for (let i = 0; i < inner.length; i += 1) {
+    const ch = inner[i];
+    if (inStr) {
+      buf += ch;
+      if (ch === inStr && inner[i - 1] !== "\\") inStr = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inStr = ch; buf += ch; continue; }
+    if (ch === "{" || ch === "[") depth += 1;
+    else if (ch === "}" || ch === "]") depth -= 1;
+    if (ch === "," && depth === 0) { parts.push(buf); buf = ""; continue; }
+    buf += ch;
+  }
+  if (buf.trim()) parts.push(buf);
+  const obj = {};
+  for (const part of parts) {
+    const idx = part.indexOf(":");
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim().replace(/^["']|["']$/g, "");
+    let value = part.slice(idx + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    } else if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(value)) {
+      value = Number(value);
+    } else if (value === "true") {
+      value = true;
+    } else if (value === "false") {
+      value = false;
+    } else if (value === "null" || value === "~") {
+      value = null;
+    }
+    obj[key] = value;
+  }
+  return obj;
+}
+
+// Resolve "{baseline}-0.02" / "{baseline}*0.95" / literal numbers against a baseline value.
+function resolveGateValue(spec, baselineValue) {
+  if (typeof spec === "number") return spec;
+  if (typeof spec !== "string") return null;
+  const text = spec.trim();
+  const num = Number(text);
+  if (Number.isFinite(num)) return num;
+  const m = text.match(/^\{baseline\}\s*([+\-*\/])?\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)?$/);
+  if (!m) return null;
+  if (!Number.isFinite(baselineValue)) return null;
+  if (!m[1]) return baselineValue;
+  const delta = Number(m[2]);
+  if (!Number.isFinite(delta)) return null;
+  switch (m[1]) {
+    case "+": return baselineValue + delta;
+    case "-": return baselineValue - delta;
+    case "*": return baselineValue * delta;
+    case "/": return delta === 0 ? null : baselineValue / delta;
+    default: return null;
+  }
+}
+
+function evalCompareOp(op, lhs, rhs) {
+  if (!Number.isFinite(lhs) || !Number.isFinite(rhs)) return false;
+  switch (op) {
+    case "<": return lhs < rhs;
+    case "<=": return lhs <= rhs;
+    case ">": return lhs > rhs;
+    case ">=": return lhs >= rhs;
+    case "==": case "=": return lhs === rhs;
+    case "!=": return lhs !== rhs;
+    default: return false;
+  }
+}
+
+function readBaselineMetricValue(cwd, metricName) {
+  const lockFile = path.join(cwd, ".researchloop", "baseline.lock");
+  if (fs.existsSync(lockFile)) {
+    try {
+      const lock = JSON.parse(fs.readFileSync(lockFile, "utf8"));
+      const v = lock?.metric_value ?? lock?.value ?? (lock?.metrics && lock.metrics[metricName]);
+      if (Number.isFinite(Number(v))) return Number(v);
+    } catch { /* fall through */ }
+  }
+  const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+  if (!fs.existsSync(ledger)) return null;
+  const rows = fs.readFileSync(ledger, "utf8").trim().split("\n").filter(Boolean);
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    try {
+      const row = JSON.parse(rows[i]);
+      if (row.agent && String(row.agent).startsWith("autoresearch baseline")) {
+        const v = row?.metrics?.[metricName];
+        if (Number.isFinite(Number(v))) return Number(v);
+      }
+    } catch { /* skip */ }
+  }
+  return null;
+}
+
+function applyPromotionGates(cwd, gates, finalMetrics, defaultMetric) {
+  if (!gates || gates.length === 0) {
+    return { status: null, reasons: [] };
+  }
+  const reasons = [];
+  let promoted = false;
+  let discarded = false;
+  for (const gate of gates) {
+    const metric = gate.metric || defaultMetric;
+    const value = Number(finalMetrics?.[metric]);
+    if (!Number.isFinite(value)) {
+      reasons.push(`${metric}: no value (gate skipped)`);
+      continue;
+    }
+    const baseline = readBaselineMetricValue(cwd, metric);
+    const threshold = resolveGateValue(gate.value, baseline);
+    if (threshold === null) {
+      reasons.push(`${metric}: could not resolve threshold ${JSON.stringify(gate.value)}`);
+      continue;
+    }
+    const triggered = evalCompareOp(gate.op, value, threshold);
+    if (!triggered) continue;
+    const action = String(gate.action || "promote").toLowerCase();
+    reasons.push(`${metric}=${value} ${gate.op} ${threshold} -> ${action}`);
+    if (action === "promote") promoted = true;
+    else if (action === "discard") discarded = true;
+  }
+  let status = null;
+  if (discarded) status = "discarded";
+  else if (promoted) status = "promoted";
+  else status = "kept";
+  return { status, reasons };
+}
+
+// Early-stop rule evaluator: returns a string reason on trigger, or null.
+function evaluateEarlyStopRules(rules, metricName, value, sampleCount, baselineByMetric) {
+  for (const rule of rules) {
+    const m = rule.metric || metricName;
+    if (m !== metricName) continue;
+    const ruleText = String(rule.rule || "").trim();
+    if (ruleText === "nan_or_inf") {
+      if (!Number.isFinite(value)) {
+        return `nan_or_inf ${m}`;
+      }
+      continue;
+    }
+    const xMatch = ruleText.match(/^>\s*(\d+(?:\.\d+)?)\s*x_baseline(?:_after_step_(\d+))?$/);
+    if (xMatch) {
+      const factor = Number(xMatch[1]);
+      const afterStep = xMatch[2] ? Number(xMatch[2]) : 0;
+      const baseline = baselineByMetric[m];
+      if (!Number.isFinite(baseline) || baseline === 0) continue;
+      if (sampleCount <= afterStep) continue;
+      if (Number.isFinite(value) && Math.abs(value) > factor * Math.abs(baseline)) {
+        return `>${factor}x_baseline ${m}=${value} (baseline=${baseline})`;
+      }
+    }
+  }
+  return null;
+}
+
 // Per-run artifact directory contract (G32).
 // Each run / baseline writes a self-describing bundle into runDir so
 // downstream tools (replay, promote, dashboard, external trainers) can
@@ -2966,29 +3278,67 @@ function writeArtifactManifest(runDir) {
   fs.writeFileSync(path.join(runDir, "MANIFEST.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-function spawnCommand(commandText, cwd, timeoutMs, logFile, timeoutReason = "timeout", childEnv = process.env) {
+function spawnCommand(commandText, cwd, timeoutMs, logFile, timeoutReason = "timeout", childEnv = process.env, opts = {}) {
+  const { onLine = null } = opts;
   return new Promise((resolve) => {
-    const child = spawn(commandText, { cwd, shell: true, env: childEnv });
+    // detached:true puts the shell into its own process group so we can signal
+    // the whole group (shell + any grandchildren like `sleep`). Without this,
+    // killing the shell leaves grandchildren holding the stdout pipe and
+    // child.on('close') never fires.
+    const child = spawn(commandText, { cwd, shell: true, env: childEnv, detached: true });
     const chunks = [];
     let timedOut = false;
+    let killedByRule = null;
+    let stdoutBuf = "";
+    let stderrBuf = "";
     const logStream = fs.createWriteStream(logFile);
+    const killGroup = (signal) => {
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        try { child.kill(signal); } catch { /* gone */ }
+      }
+    };
     const timer = setTimeout(() => {
       timedOut = true;
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // already gone
-      }
+      killGroup("SIGKILL");
     }, timeoutMs);
+    const requestKill = (reason) => {
+      if (killedByRule || timedOut) return;
+      killedByRule = reason;
+      killGroup("SIGTERM");
+      setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) killGroup("SIGKILL");
+      }, 2000);
+    };
+    const handleLine = (line) => {
+      if (!onLine || !line) return;
+      const verdict = onLine(line);
+      if (verdict && typeof verdict === "object" && verdict.kill) {
+        requestKill(verdict.kill);
+      }
+    };
+    const drainBuffer = (buf, stream) => {
+      const text = stream === "out" ? stdoutBuf : stderrBuf;
+      const updated = text + buf;
+      const lines = updated.split(/\r?\n/);
+      const remainder = lines.pop();
+      for (const line of lines) handleLine(line);
+      if (stream === "out") stdoutBuf = remainder;
+      else stderrBuf = remainder;
+    };
     child.stdout.on("data", (data) => {
       chunks.push(data);
       process.stdout.write(data);
       logStream.write(data);
+      drainBuffer(data.toString("utf8"), "out");
     });
     child.stderr.on("data", (data) => {
       chunks.push(data);
       process.stderr.write(data);
       logStream.write(data);
+      drainBuffer(data.toString("utf8"), "err");
     });
     child.on("error", (err) => {
       clearTimeout(timer);
@@ -2999,10 +3349,13 @@ function spawnCommand(commandText, cwd, timeoutMs, logFile, timeoutReason = "tim
         exitCode: null,
         timedOut,
         spawnError: err.message,
+        killedByRule,
       });
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      if (stdoutBuf) { handleLine(stdoutBuf); stdoutBuf = ""; }
+      if (stderrBuf) { handleLine(stderrBuf); stderrBuf = ""; }
       logStream.end();
       resolve({
         output: Buffer.concat(chunks).toString("utf8"),
@@ -3010,6 +3363,7 @@ function spawnCommand(commandText, cwd, timeoutMs, logFile, timeoutReason = "tim
         timedOut,
         timedOutBy: timedOut ? timeoutReason : null,
         spawnError: null,
+        killedByRule,
       });
     });
   });
@@ -3155,18 +3509,90 @@ async function executeRun(opts) {
   const stopSampler = enableSystemSampling ? startSystemSampler(runDir) : () => ({});
   const childEnv = { ...process.env, RESEARCHLOOP_RUN_DIR: runDir, ...(extraEnv || {}) };
   const startedAt = new Date().toISOString();
+
+  // Streaming metric pipeline (G06 minimal): line-by-line parse, push to
+  // metrics.jsonl live, evaluate early_stop (G11) per sample.
+  const evalConfig = loadEvalConfig(cwd);
+  const liveMetricsPath = path.join(runDir, "metrics.jsonl");
+  fs.writeFileSync(liveMetricsPath, "");
+  const liveStream = fs.createWriteStream(liveMetricsPath, { flags: "a" });
+  const streamedSeries = [];
+  const baselineByMetric = {};
+  for (const rule of evalConfig.earlyStop) {
+    const m = rule.metric || metricName;
+    if (!(m in baselineByMetric)) {
+      baselineByMetric[m] = readBaselineMetricValue(cwd, m);
+    }
+  }
+  const numericRegex = regexSource
+    ? new RegExp(regexSource, "i")
+    : new RegExp(defaultMetricRegex(metricName).source, "i");
+  // Companion regex that *also* matches non-finite tokens (nan / inf / -inf)
+  // so early_stop:nan_or_inf can fire on training output like "train_loss=nan".
+  const escapedMetric = metricName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const nonFiniteRegex = new RegExp(
+    `["']?${escapedMetric}["']?\\s*[:=]\\s*["']?([+\\-]?(?:nan|inf|infinity))\\b`,
+    "i",
+  );
+
+  const onLine = (rawLine) => {
+    const line = rawLine.trim();
+    if (!line) return null;
+    let raw = null;
+    const numMatch = line.match(numericRegex);
+    if (numMatch) {
+      raw = numMatch[1] !== undefined ? numMatch[1] : numMatch[0];
+    } else {
+      const nfMatch = line.match(nonFiniteRegex);
+      if (nfMatch) raw = nfMatch[1];
+    }
+    if (raw === null) return null;
+    let value;
+    const lower = String(raw).toLowerCase();
+    if (lower === "nan" || lower === "+nan" || lower === "-nan") {
+      value = NaN;
+    } else if (lower === "inf" || lower === "+inf" || lower === "infinity" || lower === "+infinity") {
+      value = Infinity;
+    } else if (lower === "-inf" || lower === "-infinity") {
+      value = -Infinity;
+    } else {
+      value = Number(raw);
+    }
+    const step = streamedSeries.length + 1;
+    streamedSeries.push(value);
+    try {
+      liveStream.write(`${JSON.stringify({ metric: metricName, step, value: Number.isFinite(value) ? value : null, raw })}\n`);
+    } catch { /* best-effort */ }
+    if (evalConfig.earlyStop.length > 0) {
+      const reason = evaluateEarlyStopRules(
+        evalConfig.earlyStop,
+        metricName,
+        value,
+        step,
+        baselineByMetric,
+      );
+      if (reason) return { kill: reason };
+    }
+    return null;
+  };
+
   let result;
   try {
-    result = await spawnCommand(cmdText, cwd, effectiveTimeoutMs, logFile, timeoutReason, childEnv);
+    result = await spawnCommand(cmdText, cwd, effectiveTimeoutMs, logFile, timeoutReason, childEnv, { onLine });
   } finally {
     stopSampler();
+    try { liveStream.end(); } catch { /* ignore */ }
   }
   const gpuAgg = (stopSampler.getAggregates && stopSampler.getAggregates()) || {};
   const finishedAt = new Date().toISOString();
 
   let status;
+  let killReason = null;
   if (result.spawnError) {
     status = "spawn_error";
+  } else if (result.killedByRule) {
+    status = "killed_by_rule";
+    killReason = result.killedByRule;
   } else if (result.timedOut && result.timedOutBy === "safety") {
     status = "killed_by_safety";
   } else if (result.timedOut) {
@@ -3178,13 +3604,27 @@ async function executeRun(opts) {
   }
 
   const metrics = {};
-  const metricValue = parseMetricFromOutput(result.output, metricName, regexSource);
-  const metricSeries = extractMetricSeriesFromText(result.output, metricName, regexSource);
+  // Prefer streamed series for both the final value and the history — it's the
+  // ground truth the early-stop loop already saw. Fall back to post-hoc parsing
+  // if streaming caught nothing (e.g. stdout buffered above the line splitter).
+  const finiteStreamed = streamedSeries.filter((v) => Number.isFinite(v));
+  let metricValue = finiteStreamed.length ? finiteStreamed[finiteStreamed.length - 1] : null;
+  let metricSeries = streamedSeries.slice();
+  if (metricValue === null) {
+    metricValue = parseMetricFromOutput(result.output, metricName, regexSource);
+    metricSeries = extractMetricSeriesFromText(result.output, metricName, regexSource);
+  }
   if (metricValue !== null) {
     metrics[metricName] = metricValue;
   }
   if (status === "complete" && metricValue === null) {
     status = "complete_no_metric";
+  }
+
+  // Promotion gates (G05): apply after we know the final metric value.
+  const gateResult = applyPromotionGates(cwd, evalConfig.gates, metrics, metricName);
+  if (status === "complete" && gateResult.status) {
+    status = gateResult.status;
   }
 
   const wallSeconds = Math.round((new Date(finishedAt) - new Date(startedAt)) / 1000);
@@ -3226,10 +3666,16 @@ async function executeRun(opts) {
     gpu_memory_total_mb: gpuAgg.gpu_memory_total_mb ?? null,
     gpu_hours: gpuHours,
   };
+  if (killReason) row.kill_reason = killReason;
+  if (gateResult.reasons.length) row.gate_reasons = gateResult.reasons;
   if (tags) row.tags = tags;
   if (parentId) row.parent_id = parentId;
   appendRunRow(cwd, row);
-  writeArtifactMetricsJsonl(runDir, metricName, metricSeries);
+  // metrics.jsonl is now written live during the run; do not clobber it here
+  // unless the live stream caught nothing (post-hoc fallback path).
+  if (streamedSeries.length === 0 && metricSeries.length > 0) {
+    writeArtifactMetricsJsonl(runDir, metricName, metricSeries);
+  }
   writeArtifactManifest(runDir);
 
   const thread = path.join(cwd, ".researchloop", "scratchpad", "THREAD.md");
@@ -3241,10 +3687,18 @@ async function executeRun(opts) {
     console.log("---");
     console.log(`status: ${status}`);
     console.log(`exit_code: ${result.exitCode}`);
+    if (killReason) {
+      console.log(`kill_reason: ${killReason}`);
+    }
     if (metricValue !== null) {
       console.log(`${metricName}: ${metricValue}`);
     } else {
       console.log("metric: not parsed");
+    }
+    if (gateResult.reasons.length) {
+      for (const r of gateResult.reasons) {
+        console.log(`gate: ${r}`);
+      }
     }
     if (gpuAgg.gpu_present) {
       const peak = gpuAgg.gpu_memory_peak_mb ?? "?";
@@ -3267,7 +3721,7 @@ async function executeRun(opts) {
     if (status === "failed" || status === "timeout" || status === "spawn_error") {
       process.exitCode = 1;
     }
-    if (status === "killed_by_safety") {
+    if (status === "killed_by_safety" || status === "killed_by_rule") {
       process.exitCode = 1;
     }
   }
@@ -6060,6 +6514,7 @@ Usage:
   autoresearch tag --id <run-id> [--add TAG] [--remove TAG] [--list] [--dir PATH]\n  autoresearch digest [--since DURATION] [--format text|json|markdown] [--dir PATH]\n  autoresearch param-importance [--metric METRIC] [--format table|json] [--dir PATH]\n  autoresearch suggest [--n N] [--metric METRIC] [--direction higher|lower] [--format text|json] [--dir PATH]
   autoresearch topic "<text>" [--mode propose|novel|autonomous] [--dir PATH] [--write]
   autoresearch query "<expression>" [--format jsonl|table] [--dir PATH]
+  autoresearch curves --id <run-id> [--format text|json|jsonl] [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -6162,6 +6617,8 @@ async function main() {
     cmdPreflight();
   } else if (command === "resume") {
     await cmdResume();
+  } else if (command === "curves" || command === "curve") {
+    cmdCurves();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();

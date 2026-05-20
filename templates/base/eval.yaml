@@ -1,0 +1,60 @@
+# Evaluation config for autoresearch run / baseline.
+#
+# This file is OPTIONAL. If absent, autoresearch falls back to the metric
+# declared in .researchloop/goal.md and applies no gates or early-stop.
+#
+# Two sections are active today:
+#   - early_stop: kill the child process when a rule triggers
+#   - gates:      auto-mark each run as promoted / kept / discarded after it ends
+#
+# Three sections are reserved for future goals (G06 curves, G09 resume, G12 retry)
+# and are ignored by the current parser if present.
+
+# --- Early-stop rules ------------------------------------------------------
+#
+# Evaluated against the metric series streamed from stdout while the run is
+# alive. Each rule:
+#   metric:  metric name to watch (e.g. train_loss, val_loss). If omitted,
+#            the primary metric from goal.md is used.
+#   rule:    one of:
+#              nan_or_inf                 fires on a non-finite value
+#              >Nx_baseline_after_step_K  fires when value exceeds N times the
+#                                         baseline metric and at least K samples
+#                                         have been observed
+#   action:  "kill" (only supported action today)
+#
+# Example:
+#   early_stop:
+#     - {metric: train_loss, rule: nan_or_inf, action: kill}
+#     - {metric: val_loss,   rule: ">10x_baseline_after_step_50", action: kill}
+
+early_stop: []
+
+# --- Promotion gates -------------------------------------------------------
+#
+# Evaluated against the final metric value after the run completes.
+# Each rule:
+#   metric:    metric name. If omitted, the primary metric from goal.md is used.
+#   op:        one of <, <=, >, >=, ==, !=
+#   value:     numeric literal, or one of:
+#                "{baseline}"          -> the baseline metric value
+#                "{baseline}-0.02"     -> baseline shifted by a literal delta
+#                "{baseline}+0.02"
+#                "{baseline}*0.95"     -> baseline scaled by a factor
+#                "{baseline}*1.05"
+#   action:    "promote" or "discard". If no rule matches, status is "kept".
+#
+# Example:
+#   gates:
+#     - {metric: val_loss, op: "<",  value: "{baseline}-0.01", action: promote}
+#     - {metric: val_loss, op: ">",  value: "{baseline}",      action: discard}
+
+gates: []
+
+# --- Reserved (not yet active) --------------------------------------------
+#
+# metrics:           # G04 multi-metric: full list of metrics with regex/jsonpath
+# curves:            # G06 curve regex declarations
+# checkpoint_glob:   # G09 newest checkpoint to record per run
+# resume_flag_template: # G09 e.g. "--resume {path}"
+# retry:             # G12 OOM / hardware retry transforms
