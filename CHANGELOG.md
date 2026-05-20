@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-05-20
+
+New commands:
+
+- `autoresearch verify --id <run-id>` re-runs a previously recorded run from the ledger and reports `deterministic` / `drifted` based on the metric delta vs the recorded value. Supports `--metric`, `--tolerance N`, `--timeout`, and env-mismatch warnings.
+- `autoresearch preflight` runs a fail-fast check before training: command exists and is on PATH, safety policy allows it, metric is set, data fingerprint, free disk vs `--min-disk-gb`, free RAM vs `--min-mem-gb`, GPU presence (`--require-gpu` to assert), baseline-lock state. `--format json` for scripting.
+
+Improved:
+
+- `inspect` now writes a `multi_gpu` block into `repo-profile.json` that detects torchrun, accelerate, deepspeed, and pytorch-lightning launchers in the user repo and emits suggested command shapes. Counts local GPUs via `nvidia-smi` so propose / suggest can recommend correct `--nproc-per-node` etc.
+
+Tests:
+
+- New: `test:verify`, `test:preflight`, `test:multi-gpu-detect`, all wired into `npm test`.
+
 ## 0.4.0 — 2026-05-20
 
 New commands:

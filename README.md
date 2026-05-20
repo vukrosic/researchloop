@@ -172,6 +172,9 @@ The startup plan is in `docs/startup/`.
 - `autoresearch sweep --spec FILE.json` runs a declarative variant queue (`variants` list or `grid` cross-product) through `run`, with optional `--seeds N` per variant, `--dry-run`, and a `summary.json` per sweep.
 - `autoresearch loop --command CMD [--iters N]` closes the ratchet — runs N iterations, keeps the best by metric in `loop_state.json`, with optional `--patch-cmd`, `--revert-on-regression`, and `--commit-on-win`.
 - `autoresearch anomalies [--id RUN_ID]` scans recorded metric history for divergence (NaN/inf), spikes, and plateaus.
+- `autoresearch verify --id <run-id>` re-runs a recorded run from the ledger and reports `deterministic` / `drifted` based on the metric delta. Tolerance via `--tolerance N`.
+- `autoresearch preflight` checks command/safety/metric/disk/RAM/GPU/baseline before you `run`. `--require-gpu`, `--min-disk-gb`, `--min-mem-gb` for hard gates; `--format json` for scripting.
+- `autoresearch inspect` now writes a `multi_gpu` block into `repo-profile.json` that detects torchrun, accelerate, deepspeed, and pytorch-lightning launchers and emits suggested command shapes.
 - `autoresearch record` appends a structured run result to `runs.jsonl` (use for manual rows).
 - `autoresearch compare` ranks runs by a chosen metric and reports GPU-hours and peak memory when present.
 - `autoresearch report` summarizes the run ledger.
@@ -227,6 +230,9 @@ GPU stats are captured automatically per run when `nvidia-smi` is present: `gpu_
 - `npm run test:anomalies` checks spike, plateau, and divergence detection in text and JSON output.
 - `npm run test:loop` checks the ratchet loop tracks running-best across iterations and persists `loop_state.json`.
 - `npm run test:gpu-ledger` checks the GPU fields are present (and null) on non-GPU hosts and that `compare` skips GPU lines.
+- `npm run test:verify` checks `verify --id` reproduces deterministic runs and reports drift when the recorded metric does not match.
+- `npm run test:preflight` checks preflight gates (command, safety, metric, disk, memory, GPU, baseline) in both text and JSON outputs.
+- `npm run test:multi-gpu-detect` checks torchrun / accelerate / deepspeed / pytorch-lightning launchers are detected in `inspect`.
 
 ## Contributing
 

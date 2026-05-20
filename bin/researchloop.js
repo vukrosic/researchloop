@@ -488,6 +488,76 @@ function depsMention(cwd, needle) {
   return false;
 }
 
+function detectMultiGpuStack(cwd, files) {
+  const stack = {
+    detected: [],
+    suggestions: [],
+  };
+  const has = (dep) => depsMention(cwd, dep);
+
+  const torchrunFiles = [];
+  const accelerateFiles = [];
+  const deepspeedFiles = [];
+  const lightningFiles = [];
+  const fsdpFiles = [];
+
+  for (const file of files) {
+    if (!/\.(py|sh|yaml|yml)$/i.test(file)) continue;
+    let content;
+    try {
+      content = fs.readFileSync(path.join(cwd, file), "utf8");
+    } catch {
+      continue;
+    }
+    if (/\btorchrun\b|torch\.distributed\.(launch|run)/.test(content)) {
+      torchrunFiles.push(file);
+    }
+    if (/\baccelerate\b|accelerate\.Accelerator\(|from accelerate /.test(content)) {
+      accelerateFiles.push(file);
+    }
+    if (/\bdeepspeed\b|deepspeed\.initialize|--deepspeed_config/.test(content)) {
+      deepspeedFiles.push(file);
+    }
+    if (/pytorch_lightning|lightning\.pytorch|import lightning/.test(content)) {
+      lightningFiles.push(file);
+    }
+    if (/FullyShardedDataParallel|torch\.distributed\.fsdp/.test(content)) {
+      fsdpFiles.push(file);
+    }
+  }
+
+  if (torchrunFiles.length || has("torch")) {
+    if (torchrunFiles.length) {
+      stack.detected.push({ tool: "torchrun", files: torchrunFiles.slice(0, 5) });
+      stack.suggestions.push("torchrun --nproc-per-node=<N_GPUS> <train.py> [args]");
+    }
+  }
+  if (accelerateFiles.length || has("accelerate")) {
+    stack.detected.push({ tool: "accelerate", files: accelerateFiles.slice(0, 5) });
+    stack.suggestions.push("accelerate launch --num_processes=<N_GPUS> <train.py> [args]");
+  }
+  if (deepspeedFiles.length || has("deepspeed")) {
+    stack.detected.push({ tool: "deepspeed", files: deepspeedFiles.slice(0, 5) });
+    stack.suggestions.push("deepspeed --num_gpus=<N_GPUS> <train.py> --deepspeed_config <config.json>");
+  }
+  if (lightningFiles.length || has("pytorch_lightning") || has("lightning")) {
+    stack.detected.push({ tool: "pytorch-lightning", files: lightningFiles.slice(0, 5) });
+    stack.suggestions.push("python <train.py> --trainer.devices=<N_GPUS> --trainer.strategy=ddp");
+  }
+  if (fsdpFiles.length) {
+    stack.detected.push({ tool: "fsdp", files: fsdpFiles.slice(0, 5) });
+  }
+
+  const gpuProbe = probeGpuStats();
+  if (gpuProbe) {
+    stack.gpus_local = gpuProbe.length;
+    stack.gpu_memory_total_mb_local = Math.max(...gpuProbe.map((g) => g.mem_total_mb || 0)) || null;
+  } else {
+    stack.gpus_local = 0;
+  }
+  return stack;
+}
+
 function detectRepo(cwd) {
   const files = walkFiles(cwd, 3);
   const basenames = files.map((file) => path.basename(file));
@@ -505,6 +575,8 @@ function detectRepo(cwd) {
     adapters.push("llm-research-kit");
   }
 
+  const multiGpu = detectMultiGpuStack(cwd, files);
+
   return {
     cwd,
     generated_at: new Date().toISOString(),
@@ -516,6 +588,7 @@ function detectRepo(cwd) {
     candidate_config_files: files.filter((file) => /(^|\/|_)(config|cfg)[\w-]*\.(py|js|ts|json|yaml|yml|toml)$/i.test(file)).slice(0, 40),
     candidate_log_dirs: existsAny(cwd, ["logs", "runs", "wandb", "mlruns", "checkpoints", "plots"]),
     adapters: [...new Set(adapters)],
+    multi_gpu: multiGpu,
   };
 }
 
@@ -2837,6 +2910,224 @@ function cmdReplay() {
   }
 }
 
+async function cmdVerify() {
+  const cwd = targetDir();
+  const runId = String(option("--id", positionalText())).trim();
+  if (!runId) {
+    console.error("autoresearch verify: --id <run-id> required");
+    process.exitCode = 1;
+    return;
+  }
+  const source = readRunRowById(cwd, runId);
+  if (!source) {
+    console.error(`No run found for id: ${runId}`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!source.command) {
+    console.error(`Run ${runId} has no recorded command — cannot verify.`);
+    process.exitCode = 1;
+    return;
+  }
+  const metricKeys = source.metrics ? Object.keys(source.metrics).filter((k) => !k.endsWith("_std")) : [];
+  const metricName = String(option("--metric", metricKeys[0] || "val_loss")).trim();
+  const expectedValue = source.metrics ? Number(source.metrics[metricName]) : Number.NaN;
+  const tolRaw = option("--tolerance", "0.001");
+  const tolerance = Math.max(0, parseFloat(String(tolRaw)));
+  const allowUnsafe = hasFlag("--allow-unsafe");
+  const timeoutSec = Number(option("--timeout", 600));
+  const regexSource = option("--regex", null);
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const verifyId = String(option("--verify-id", `verify-${runId}-${stamp}`));
+
+  console.log(`autoresearch verify`);
+  console.log(`source: ${runId}`);
+  console.log(`command: ${source.command}`);
+  if (Number.isFinite(expectedValue)) {
+    console.log(`expected ${metricName}: ${expectedValue} (tolerance=±${tolerance})`);
+  } else {
+    console.log(`expected ${metricName}: not recorded`);
+  }
+  console.log("---");
+
+  const currentEnv = captureEnv(cwd);
+  const envWarnings = source.env ? envMismatches(source.env, currentEnv) : [];
+  for (const m of envWarnings) {
+    console.error(`WARNING: env mismatch ${m.field}: stored=${formatEnvValue(m.expected)} current=${formatEnvValue(m.current)}`);
+  }
+
+  const res = await executeRun({
+    cwd,
+    cmdText: source.command,
+    metricName,
+    regexSource: typeof regexSource === "string" ? regexSource : null,
+    timeoutSec,
+    allowUnsafe,
+    isBaseline: false,
+    idOverride: verifyId,
+    extraConfig: { verify_of: runId, expected_metric: { [metricName]: expectedValue } },
+    suppressExitCode: true,
+    quiet: true,
+    tags: ["verify"],
+    parentId: runId,
+  });
+
+  if (!res.ok) {
+    console.log(`status: ${res.status}`);
+    process.exitCode = 1;
+    return;
+  }
+  const newValue = res.metricValue;
+  const newStatus = res.status;
+  console.log(`new ${metricName}: ${newValue === null ? "not parsed" : newValue}`);
+  console.log(`new status: ${newStatus}`);
+  let determinism = "unknown";
+  let delta = null;
+  if (Number.isFinite(newValue) && Number.isFinite(expectedValue)) {
+    delta = newValue - expectedValue;
+    if (Math.abs(delta) <= tolerance) {
+      determinism = "deterministic";
+    } else {
+      determinism = "drifted";
+    }
+    console.log(`delta: ${delta.toFixed(6)}`);
+  }
+  console.log(`determinism: ${determinism}`);
+  console.log(`env: ${envWarnings.length ? "mismatch(" + envWarnings.length + ")" : "match"}`);
+  console.log(`recorded: ${verifyId}`);
+
+  if (determinism === "drifted") {
+    process.exitCode = 1;
+  }
+  if (newStatus === "failed" || newStatus === "timeout" || newStatus === "spawn_error") {
+    process.exitCode = 1;
+  }
+}
+
+function cmdPreflight() {
+  const cwd = targetDir();
+  const goalFields = readGoalFields(cwd);
+  const cmdRaw = option("--command", null);
+  let cmdText = cmdRaw && typeof cmdRaw === "string" ? cmdRaw : "";
+  if (!cmdText) cmdText = goalFields.evaluation || goalFields.baseline || "";
+  const formatJson = String(option("--format", "text")).toLowerCase() === "json";
+
+  const checks = [];
+  const addCheck = (name, status, message, extra = {}) => {
+    checks.push({ name, status, message, ...extra });
+  };
+
+  if (!cmdText || cmdText.toLowerCase() === "unknown") {
+    addCheck("command", "fail", "no command (pass --command CMD or set baseline/evaluation in goal.md)");
+  } else {
+    addCheck("command", "pass", cmdText);
+    const safetyPolicy = loadSafetyPolicy(cwd);
+    const safetyCheck = evaluateCommandSafety(cmdText, safetyPolicy);
+    if (safetyCheck.allowed) {
+      addCheck("safety", "pass", "command allowed by safety policy");
+    } else {
+      addCheck("safety", "fail", `${safetyCheck.rule}: ${safetyCheck.message}`);
+    }
+    const firstToken = cmdText.trim().split(/\s+/)[0] || "";
+    const interpreter = firstToken.replace(/^["']|["']$/g, "");
+    if (interpreter && !interpreter.startsWith("./") && !interpreter.includes("/")) {
+      const whichRes = runCapture(`command -v ${interpreter} 2>/dev/null`, cwd);
+      if (whichRes.ok && whichRes.output.trim()) {
+        addCheck("interpreter", "pass", `${interpreter} -> ${whichRes.output.trim()}`);
+      } else {
+        addCheck("interpreter", "warn", `${interpreter} not found on PATH`);
+      }
+    }
+  }
+
+  if (goalFields.metric) {
+    addCheck("metric", "pass", goalFields.metric);
+  } else {
+    addCheck("metric", "warn", "no metric set in goal.md (--metric val_loss assumed by run)");
+  }
+
+  const dataGlobs = goalFields.data_globs || [];
+  const fingerprint = computeDataFingerprint(cwd, dataGlobs);
+  if (fingerprint) {
+    addCheck("data_fingerprint", "pass", fingerprint, { data_globs: dataGlobs });
+  } else {
+    addCheck("data_fingerprint", "warn", "no data_globs in goal.md — fingerprint skipped");
+  }
+
+  const freeBytes = (() => {
+    try {
+      const out = execSync(`df -k "${cwd}" | tail -1`, { encoding: "utf8", timeout: 1500 });
+      const parts = out.trim().split(/\s+/);
+      const availKb = Number(parts[3]);
+      return Number.isFinite(availKb) ? availKb * 1024 : null;
+    } catch {
+      return null;
+    }
+  })();
+  const minDiskGb = Number(option("--min-disk-gb", 5));
+  if (freeBytes !== null) {
+    const freeGb = freeBytes / 1024 / 1024 / 1024;
+    if (freeGb < minDiskGb) {
+      addCheck("disk", "fail", `${freeGb.toFixed(1)}GB free < ${minDiskGb}GB required`);
+    } else {
+      addCheck("disk", "pass", `${freeGb.toFixed(1)}GB free`);
+    }
+  } else {
+    addCheck("disk", "warn", "df failed; could not probe free disk");
+  }
+
+  const totalMemGb = os.totalmem() / 1024 / 1024 / 1024;
+  const freeMemGb = os.freemem() / 1024 / 1024 / 1024;
+  // os.freemem reports only purely-free pages; macOS/Linux page cache makes
+  // this consistently low. Default threshold is 0 — pass --min-mem-gb for
+  // real workloads.
+  const minMemGb = Number(option("--min-mem-gb", 0));
+  if (freeMemGb < minMemGb) {
+    addCheck("memory", "fail", `${freeMemGb.toFixed(1)}GB free RAM < ${minMemGb}GB required (total ${totalMemGb.toFixed(1)}GB)`);
+  } else {
+    addCheck("memory", "pass", `${freeMemGb.toFixed(1)}GB free / ${totalMemGb.toFixed(1)}GB total`);
+  }
+
+  const requireGpu = hasFlag("--require-gpu");
+  const gpus = probeGpuStats();
+  if (gpus && gpus.length) {
+    addCheck("gpu", "pass", `${gpus.length} GPU(s) detected (peak mem ${Math.max(...gpus.map((g) => g.mem_total_mb || 0))}MB)`);
+  } else if (requireGpu) {
+    addCheck("gpu", "fail", "nvidia-smi failed/absent and --require-gpu was set");
+  } else {
+    addCheck("gpu", "info", "no GPU detected (nvidia-smi unavailable)");
+  }
+
+  const lockFile = path.join(cwd, ".researchloop", "baseline.lock");
+  if (fs.existsSync(lockFile)) {
+    const drift = checkBaselineDrift();
+    if (drift && drift.length) {
+      addCheck("baseline", "warn", `baseline drifted: ${drift.join("; ")}`);
+    } else {
+      addCheck("baseline", "pass", "baseline locked, no drift");
+    }
+  } else {
+    addCheck("baseline", "info", "no baseline lock");
+  }
+
+  const fail = checks.some((c) => c.status === "fail");
+  const summary = { ok: !fail, checks };
+  if (formatJson) {
+    console.log(JSON.stringify(summary, null, 2));
+  } else {
+    console.log(`autoresearch preflight`);
+    console.log("---");
+    for (const c of checks) {
+      const sym = c.status === "pass" ? "✓" : c.status === "fail" ? "✗" : c.status === "warn" ? "!" : "·";
+      console.log(`${sym} ${c.name}: ${c.message}`);
+    }
+    console.log("---");
+    console.log(fail ? "preflight: FAIL" : "preflight: OK");
+  }
+  if (fail) process.exitCode = 1;
+}
+
 const ARXIV_API_URL = "http://export.arxiv.org/api/query";
 
 function arxivCacheDir() {
@@ -5111,6 +5402,8 @@ Usage:
   autoresearch sweep --spec FILE.json [--metric NAME] [--seeds N] [--direction lower|higher] [--dry-run] [--allow-unsafe] [--dir PATH]
   autoresearch loop --command CMD [--iters N] [--metric NAME] [--direction lower|higher] [--patch-cmd CMD] [--revert-on-regression] [--commit-on-win] [--keep-if better|same] [--dir PATH]
   autoresearch anomalies [--id RUN_ID] [--format text|json] [--dir PATH]
+  autoresearch verify --id <run-id> [--metric NAME] [--tolerance N] [--timeout SECONDS] [--allow-unsafe] [--dir PATH]
+  autoresearch preflight [--command CMD] [--require-gpu] [--min-disk-gb N] [--min-mem-gb N] [--format text|json] [--dir PATH]
   autoresearch scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
@@ -5221,6 +5514,10 @@ async function main() {
     await cmdLoop();
   } else if (command === "anomalies" || command === "anomaly") {
     cmdAnomalies();
+  } else if (command === "verify") {
+    await cmdVerify();
+  } else if (command === "preflight" || command === "preflight-check") {
+    cmdPreflight();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
