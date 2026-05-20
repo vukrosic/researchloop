@@ -3005,6 +3005,116 @@ async function cmdVerify() {
   }
 }
 
+function findLatestResumableRun(cwd) {
+  const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+  if (!fs.existsSync(ledger)) return null;
+  const rows = fs
+    .readFileSync(ledger, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => { try { return JSON.parse(line); } catch { return null; } })
+    .filter(Boolean);
+  const resumable = rows.filter((r) =>
+    r && r.command &&
+    (r.status === "failed" || r.status === "timeout" || r.status === "killed_by_safety" || r.status === "spawn_error"),
+  );
+  if (!resumable.length) return null;
+  resumable.sort((a, b) => String(b.timestamp || "").localeCompare(String(a.timestamp || "")));
+  return resumable[0];
+}
+
+async function cmdResume() {
+  const cwd = targetDir();
+  const explicitId = option("--id", null);
+  let source;
+  if (explicitId && typeof explicitId === "string") {
+    source = readRunRowById(cwd, explicitId);
+    if (!source) {
+      console.error(`autoresearch resume: no run found for id: ${explicitId}`);
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    source = findLatestResumableRun(cwd);
+    if (!source) {
+      console.error("autoresearch resume: no failed/timeout runs found in the ledger.");
+      console.error("Pass --id <run-id> to resume a specific run.");
+      process.exitCode = 1;
+      return;
+    }
+  }
+  if (!source.command) {
+    console.error(`autoresearch resume: source run ${source.id} has no recorded command.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const sourceRunDir = path.join(cwd, ".researchloop", "scratchpad", "runs", source.id);
+  const sourceDirAbs = path.resolve(sourceRunDir);
+  const hasSourceDir = fs.existsSync(sourceRunDir);
+
+  const metricKeys = source.metrics ? Object.keys(source.metrics).filter((k) => !k.endsWith("_std")) : [];
+  const metricName = String(option("--metric", metricKeys[0] || "val_loss")).trim();
+  const regexSource = option("--regex", null);
+  const timeoutSec = Number(option("--timeout", 600));
+  const allowUnsafe = hasFlag("--allow-unsafe");
+  const cmdOverride = option("--command", null);
+  const cmdText = cmdOverride && typeof cmdOverride === "string" ? cmdOverride : source.command;
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const resumeId = String(option("--resume-id", `resume-${source.id}-${stamp}`));
+
+  console.log(`autoresearch resume`);
+  console.log(`source: ${source.id} (status=${source.status})`);
+  console.log(`command: ${cmdText}`);
+  console.log(`resume_dir: ${hasSourceDir ? path.relative(cwd, sourceRunDir) : "(missing — env vars set anyway)"}`);
+  console.log(`metric: ${metricName}`);
+  console.log("---");
+
+  if (!hasSourceDir) {
+    console.error("WARNING: prior run dir not found; resume env vars will point to a missing path.");
+  }
+
+  const res = await executeRun({
+    cwd,
+    cmdText,
+    metricName,
+    regexSource: typeof regexSource === "string" ? regexSource : null,
+    timeoutSec,
+    allowUnsafe,
+    isBaseline: false,
+    idOverride: resumeId,
+    extraConfig: {
+      resume_of: source.id,
+      resume_dir: sourceDirAbs,
+      source_status: source.status,
+    },
+    extraEnv: {
+      RESEARCHLOOP_RESUME: "1",
+      RESEARCHLOOP_RESUME_FROM: source.id,
+      RESEARCHLOOP_RESUME_DIR: sourceDirAbs,
+    },
+    suppressExitCode: true,
+    quiet: true,
+    tags: ["resume"],
+    parentId: source.id,
+  });
+
+  if (!res.ok) {
+    console.log(`status: ${res.status}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`new ${metricName}: ${res.metricValue === null ? "not parsed" : res.metricValue}`);
+  console.log(`status: ${res.status}`);
+  console.log(`recorded: ${resumeId}`);
+
+  if (res.status === "failed" || res.status === "timeout" || res.status === "spawn_error" || res.status === "killed_by_safety") {
+    process.exitCode = 1;
+  }
+}
+
 function cmdPreflight() {
   const cwd = targetDir();
   const goalFields = readGoalFields(cwd);
@@ -5404,6 +5514,7 @@ Usage:
   autoresearch anomalies [--id RUN_ID] [--format text|json] [--dir PATH]
   autoresearch verify --id <run-id> [--metric NAME] [--tolerance N] [--timeout SECONDS] [--allow-unsafe] [--dir PATH]
   autoresearch preflight [--command CMD] [--require-gpu] [--min-disk-gb N] [--min-mem-gb N] [--format text|json] [--dir PATH]
+  autoresearch resume [--id RUN_ID] [--command CMD] [--metric NAME] [--timeout SECONDS] [--allow-unsafe] [--dir PATH]
   autoresearch scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
@@ -5518,6 +5629,8 @@ async function main() {
     await cmdVerify();
   } else if (command === "preflight" || command === "preflight-check") {
     cmdPreflight();
+  } else if (command === "resume") {
+    await cmdResume();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();

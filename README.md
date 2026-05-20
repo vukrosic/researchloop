@@ -174,6 +174,7 @@ The startup plan is in `docs/startup/`.
 - `autoresearch anomalies [--id RUN_ID]` scans recorded metric history for divergence (NaN/inf), spikes, and plateaus.
 - `autoresearch verify --id <run-id>` re-runs a recorded run from the ledger and reports `deterministic` / `drifted` based on the metric delta. Tolerance via `--tolerance N`.
 - `autoresearch preflight` checks command/safety/metric/disk/RAM/GPU/baseline before you `run`. `--require-gpu`, `--min-disk-gb`, `--min-mem-gb` for hard gates; `--format json` for scripting.
+- `autoresearch resume [--id RUN_ID]` re-launches a failed or timed-out run. Exposes `$RESEARCHLOOP_RESUME=1`, `$RESEARCHLOOP_RESUME_FROM=<source-id>`, and `$RESEARCHLOOP_RESUME_DIR=<prior-run-dir>` to the child process so your training script can load its last checkpoint. Auto-picks the latest resumable run when `--id` is omitted.
 - `autoresearch inspect` now writes a `multi_gpu` block into `repo-profile.json` that detects torchrun, accelerate, deepspeed, and pytorch-lightning launchers and emits suggested command shapes.
 - `autoresearch record` appends a structured run result to `runs.jsonl` (use for manual rows).
 - `autoresearch compare` ranks runs by a chosen metric and reports GPU-hours and peak memory when present.
@@ -233,6 +234,7 @@ GPU stats are captured automatically per run when `nvidia-smi` is present: `gpu_
 - `npm run test:verify` checks `verify --id` reproduces deterministic runs and reports drift when the recorded metric does not match.
 - `npm run test:preflight` checks preflight gates (command, safety, metric, disk, memory, GPU, baseline) in both text and JSON outputs.
 - `npm run test:multi-gpu-detect` checks torchrun / accelerate / deepspeed / pytorch-lightning launchers are detected in `inspect`.
+- `npm run test:resume` checks the resume command finds the latest failed run, exposes the resume env vars to the child, and records the `resume_of` pointer.
 
 ## Contributing
 

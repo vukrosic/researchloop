@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.5.1 — 2026-05-20
+
+New commands:
+
+- `autoresearch resume [--id RUN_ID]` — re-launches a failed / timeout / spawn-error / killed-by-safety run from the ledger. Sets `$RESEARCHLOOP_RESUME=1`, `$RESEARCHLOOP_RESUME_FROM=<source-id>`, `$RESEARCHLOOP_RESUME_DIR=<abs path to prior run dir>` so the user's training script can detect resume mode and load its last checkpoint. If `--id` is omitted, auto-picks the most recent resumable run from the ledger. Records `resume_of` pointer in the child config and `parent_id` in the ledger row.
+
+Tests:
+
+- New: `test:resume`, wired into `npm test`.
+
 ## 0.5.0 — 2026-05-20
 
 New commands:
