@@ -2,16 +2,36 @@
 
 ## Unreleased
 
-New:
+## 0.4.0 — 2026-05-20
 
-- Renamed the npm package from `researchloop` to `autoresearch-ai`.
-- Updated the README and local install examples to use the new package/repo name.
-- Added `templates/prompts/topic-intake.md` for baseline-aware research topics like query/key architecture work.
-- Added `.researchloop/baseline.md` to new harness installs.
+New commands:
+
+- `autoresearch sweep --spec FILE.json` — declarative variant queue. Supports `variants` (explicit list) or `grid` (cross-product), `command_template` with `{param}` placeholders, optional `--seeds N` per variant, `--dry-run`, and a `summary.json` written to `.researchloop/scratchpad/sweeps/<id>/`.
+- `autoresearch run --seeds N` — runs the command N times under different seeds (substituted as `{seed}` in the command, also exported as `$RESEARCHLOOP_SEED`). Records one child run per seed plus an aggregator row carrying `mean`, `std`, `min`, `max`, and `child_run_ids` in the ledger.
+- `autoresearch loop --command CMD [--iters N]` — closed ratchet loop: runs the command N times, tracks the running-best metric in `.researchloop/scratchpad/loop_state.json`. Optional `--patch-cmd CMD`, `--revert-on-regression`, `--commit-on-win`, and `--keep-if better|same`.
+- `autoresearch anomalies [--id RUN_ID] [--format text|json]` — scans recorded `metric_history` for divergence (NaN/inf), spikes (>5× median prior), and plateaus (last 8 steps within 0.5% range).
 
 Improved:
 
-- README, getting-started, site copy, and onboarding prompts now point to `npm install -g autoresearch-ai`.
+- Every `run` and `baseline` now records GPU stats when `nvidia-smi` is available: `gpu_present`, `gpu_count`, `gpu_util_max_pct`, `gpu_util_mean_pct`, `gpu_memory_peak_mb`, `gpu_memory_total_mb`, and `gpu_hours`. The fields are present (and null) on non-GPU hosts so the ledger schema stays stable.
+- `compare` now emits `gpu_runs`, `gpu_hours_total`, and `gpu_memory_peak_mb` summary lines when any compared run has GPU stats.
+- `cmdRun` body is now factored through an `executeRun(opts)` helper used by `run`, `baseline`, `sweep`, `loop`, and `--seeds` — no behavioral change for the existing two commands.
+
+Tests:
+
+- New: `test:sweep`, `test:seeds`, `test:anomalies`, `test:loop`, `test:gpu-ledger`, all wired into `npm test`.
+
+## 0.3.2 — 2026-05-20
+
+New:
+
+- Added `templates/prompts/topic-intake.md` for baseline-aware research topics like query/key architecture work.
+- Added `.researchloop/baseline.md` to new harness installs.
+- README now documents the full CLI surface (`propose`, `rank`, `suggest`, `topic`, `query`, `failures`, `diff-runs`, `param-importance`, `baseline-status`, `baseline --lock/--unlock`, `replay`, `prune`, `tag`, `data-fingerprint`, `model-card`, `digest`).
+
+Improved:
+
+- README, getting-started, site copy, and onboarding prompts now point to `npm install -g autoresearch-ai` (rename from `researchloop` shipped on npm in 0.3.1; README copy now matches).
 - Research idea prompts now offer `propose`, `novel`, and `autonomous` modes after the baseline is clear.
 - Topic recommendations now require grounded hypotheses with mechanisms and failure modes instead of random tweak menus.
 

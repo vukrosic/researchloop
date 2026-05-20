@@ -2110,6 +2110,15 @@ function cmdCompare() {
   for (const entry of scored.slice(0, 3)) {
     console.log(`- ${entry.row.id}: ${entry.value}`);
   }
+
+  const gpuRows = scored.filter((e) => e.row && e.row.gpu_present);
+  if (gpuRows.length > 0) {
+    const totalGpuHours = gpuRows.reduce((acc, e) => acc + (Number(e.row.gpu_hours) || 0), 0);
+    const peakMem = Math.max(...gpuRows.map((e) => Number(e.row.gpu_memory_peak_mb) || 0));
+    console.log(`gpu_runs: ${gpuRows.length}`);
+    console.log(`gpu_hours_total: ${totalGpuHours.toFixed(4)}`);
+    console.log(`gpu_memory_peak_mb: ${peakMem}`);
+  }
 }
 
 function rowMetricValue(row, key) {
@@ -2219,11 +2228,45 @@ function writeArtifactMetricsJsonl(runDir, metricName, metricSeries) {
   fs.writeFileSync(file, `${lines}\n`);
 }
 
+function probeGpuStats() {
+  try {
+    const out = execSync(
+      "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits",
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2000 },
+    );
+    const gpus = out
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [util, used, total] = line.split(",").map((p) => Number(p.trim()));
+        return {
+          util_pct: Number.isFinite(util) ? util : null,
+          mem_used_mb: Number.isFinite(used) ? used : null,
+          mem_total_mb: Number.isFinite(total) ? total : null,
+        };
+      });
+    return gpus.length ? gpus : null;
+  } catch {
+    return null;
+  }
+}
+
 function startSystemSampler(runDir, intervalMs = 5000) {
   const file = path.join(runDir, "system.jsonl");
   fs.writeFileSync(file, "");
+  const agg = {
+    samples: 0,
+    gpu_present: false,
+    gpu_count: 0,
+    gpu_util_max_pct: 0,
+    gpu_util_sum_pct: 0,
+    gpu_memory_peak_mb: 0,
+    gpu_memory_total_mb: 0,
+  };
   const sample = () => {
     const load = os.loadavg();
+    const gpus = probeGpuStats();
     const row = {
       ts: new Date().toISOString(),
       load_avg_1m: load[0],
@@ -2231,7 +2274,33 @@ function startSystemSampler(runDir, intervalMs = 5000) {
       load_avg_15m: load[2],
       mem_total_bytes: os.totalmem(),
       mem_free_bytes: os.freemem(),
+      gpus: gpus || null,
     };
+    if (gpus) {
+      agg.gpu_present = true;
+      agg.gpu_count = Math.max(agg.gpu_count, gpus.length);
+      let sampleMax = 0;
+      let sampleSum = 0;
+      let sampleMemPeak = 0;
+      let sampleMemTotal = 0;
+      for (const g of gpus) {
+        if (Number.isFinite(g.util_pct)) {
+          sampleMax = Math.max(sampleMax, g.util_pct);
+          sampleSum += g.util_pct;
+        }
+        if (Number.isFinite(g.mem_used_mb)) {
+          sampleMemPeak = Math.max(sampleMemPeak, g.mem_used_mb);
+        }
+        if (Number.isFinite(g.mem_total_mb)) {
+          sampleMemTotal = Math.max(sampleMemTotal, g.mem_total_mb);
+        }
+      }
+      agg.gpu_util_max_pct = Math.max(agg.gpu_util_max_pct, sampleMax);
+      agg.gpu_util_sum_pct += sampleSum / Math.max(1, gpus.length);
+      agg.gpu_memory_peak_mb = Math.max(agg.gpu_memory_peak_mb, sampleMemPeak);
+      agg.gpu_memory_total_mb = Math.max(agg.gpu_memory_total_mb, sampleMemTotal);
+    }
+    agg.samples += 1;
     try {
       fs.appendFileSync(file, `${JSON.stringify(row)}\n`);
     } catch {
@@ -2240,9 +2309,23 @@ function startSystemSampler(runDir, intervalMs = 5000) {
   };
   sample();
   const timer = setInterval(sample, intervalMs);
-  return () => {
+  const stop = () => {
     clearInterval(timer);
   };
+  stop.getAggregates = () => {
+    const meanUtil = agg.samples > 0 && agg.gpu_present
+      ? Number((agg.gpu_util_sum_pct / agg.samples).toFixed(2))
+      : null;
+    return {
+      gpu_present: agg.gpu_present,
+      gpu_count: agg.gpu_count || null,
+      gpu_util_max_pct: agg.gpu_present ? agg.gpu_util_max_pct : null,
+      gpu_util_mean_pct: meanUtil,
+      gpu_memory_peak_mb: agg.gpu_present ? agg.gpu_memory_peak_mb : null,
+      gpu_memory_total_mb: agg.gpu_present ? agg.gpu_memory_total_mb || null : null,
+    };
+  };
+  return stop;
 }
 
 function writeArtifactManifest(runDir) {
@@ -2376,52 +2459,59 @@ function readGoalFields(cwd) {
   };
 }
 
-async function cmdRun(isBaseline) {
-  const cwd = targetDir();
-  const goalFields = readGoalFields(cwd);
-  const explicitCommand = option("--command", null);
-  const allowUnsafe = hasFlag("--allow-unsafe");
-  let cmdText = explicitCommand && typeof explicitCommand === "string" ? explicitCommand : "";
-  if (!cmdText) {
-    cmdText = isBaseline
-      ? goalFields.baseline
-      : (goalFields.evaluation || goalFields.baseline);
-  }
+async function executeRun(opts) {
+  const {
+    cwd,
+    cmdText,
+    metricName,
+    regexSource,
+    timeoutSec,
+    allowUnsafe,
+    isBaseline,
+    idOverride,
+    extraConfig = null,
+    extraEnv = null,
+    suppressGoalUpdate = false,
+    suppressExitCode = false,
+    enableSystemSampling = true,
+    quiet = false,
+    tags = null,
+    parentId = null,
+  } = opts;
   if (!cmdText || cmdText.toLowerCase() === "unknown") {
-    console.error("No command to run.");
-    console.error("Set one via:");
-    console.error("  autoresearch goal \"<text>\" --baseline \"python train.py\" --evaluation \"python eval.py\"");
-    console.error("Or pass --command directly.");
-    process.exitCode = 1;
-    return;
+    if (!quiet) {
+      console.error("No command to run.");
+      console.error("Set one via:");
+      console.error("  autoresearch goal \"<text>\" --baseline \"python train.py\" --evaluation \"python eval.py\"");
+      console.error("Or pass --command directly.");
+    }
+    if (!suppressExitCode) process.exitCode = 1;
+    return { ok: false, status: "no_command" };
   }
 
-  const metricName = String(option("--metric", goalFields.metric || "val_loss")).trim() || "val_loss";
-  const customRegex = option("--regex", null);
-  const regexSource = customRegex && typeof customRegex === "string" ? customRegex : null;
-  const timeoutSec = Number(option("--timeout", 600));
-  const timeoutMs = Number.isFinite(timeoutSec) && timeoutSec > 0 ? timeoutSec * 1000 : 600000;
   const safetyPolicy = loadSafetyPolicy(cwd);
   const safetyCheck = evaluateCommandSafety(cmdText, safetyPolicy);
-
   if (!allowUnsafe && !safetyCheck.allowed) {
-    console.error("autoresearch safety: blocked command before execution");
-    console.error(`rule: ${safetyCheck.rule}`);
-    console.error(`reason: ${safetyCheck.message}`);
-    process.exitCode = 1;
-    return;
+    if (!quiet) {
+      console.error("autoresearch safety: blocked command before execution");
+      console.error(`rule: ${safetyCheck.rule}`);
+      console.error(`reason: ${safetyCheck.message}`);
+    }
+    if (!suppressExitCode) process.exitCode = 1;
+    return { ok: false, status: "blocked", safety: safetyCheck };
   }
-
-  if (allowUnsafe) {
+  if (allowUnsafe && !quiet) {
     console.error("WARNING: --allow-unsafe bypasses command safety checks. This command will run unsafely.");
   }
 
+  const timeoutMs = Number.isFinite(timeoutSec) && timeoutSec > 0 ? timeoutSec * 1000 : 600000;
   const prefix = isBaseline ? "baseline" : "run";
-  const id = String(option("--id", `${prefix}-${new Date().toISOString().replace(/[:.]/g, "-")}`));
+  const id = String(idOverride || `${prefix}-${new Date().toISOString().replace(/[:.]/g, "-")}`);
   const runDir = path.join(cwd, ".researchloop", "scratchpad", "runs", id);
   ensureDir(runDir);
   const logFile = path.join(runDir, "log.txt");
   const env = captureEnv(cwd);
+  const goalFields = readGoalFields(cwd);
   const dataFingerprint = computeDataFingerprint(cwd, goalFields.data_globs);
   const effectiveTimeoutMs = allowUnsafe || !Number.isFinite(safetyCheck.maxMs)
     ? timeoutMs
@@ -2430,7 +2520,6 @@ async function cmdRun(isBaseline) {
     ? "safety"
     : "timeout";
 
-  const enableSystemSampling = !hasFlag("--no-system-sampling");
   writeArtifactEnvJson(runDir, env);
   writeArtifactCodeDiff(runDir, cwd);
   writeArtifactConfigJson(runDir, {
@@ -2444,20 +2533,23 @@ async function cmdRun(isBaseline) {
     timeout_reason: timeoutReason,
     allow_unsafe: allowUnsafe,
     safety_max_minutes_per_run: safetyPolicy.maxMinutesPerRun ?? null,
+    ...(extraConfig || {}),
   });
 
-  console.log(`autoresearch ${prefix}`);
-  console.log(`command: ${cmdText}`);
-  console.log(`metric: ${metricName}`);
-  console.log(`timeout: ${effectiveTimeoutMs / 1000}s`);
-  if (!allowUnsafe && timeoutReason === "safety") {
-    console.log(`safety: max_minutes_per_run=${safetyPolicy.maxMinutesPerRun}`);
+  if (!quiet) {
+    console.log(`autoresearch ${prefix}`);
+    console.log(`command: ${cmdText}`);
+    console.log(`metric: ${metricName}`);
+    console.log(`timeout: ${effectiveTimeoutMs / 1000}s`);
+    if (!allowUnsafe && timeoutReason === "safety") {
+      console.log(`safety: max_minutes_per_run=${safetyPolicy.maxMinutesPerRun}`);
+    }
+    console.log(`log: ${path.relative(cwd, logFile)}`);
+    console.log("---");
   }
-  console.log(`log: ${path.relative(cwd, logFile)}`);
-  console.log("---");
 
-  const stopSampler = enableSystemSampling ? startSystemSampler(runDir) : () => {};
-  const childEnv = { ...process.env, RESEARCHLOOP_RUN_DIR: runDir };
+  const stopSampler = enableSystemSampling ? startSystemSampler(runDir) : () => ({});
+  const childEnv = { ...process.env, RESEARCHLOOP_RUN_DIR: runDir, ...(extraEnv || {}) };
   const startedAt = new Date().toISOString();
   let result;
   try {
@@ -2465,6 +2557,7 @@ async function cmdRun(isBaseline) {
   } finally {
     stopSampler();
   }
+  const gpuAgg = (stopSampler.getAggregates && stopSampler.getAggregates()) || {};
   const finishedAt = new Date().toISOString();
 
   let status;
@@ -2491,6 +2584,7 @@ async function cmdRun(isBaseline) {
   }
 
   const wallSeconds = Math.round((new Date(finishedAt) - new Date(startedAt)) / 1000);
+  const gpuHours = gpuAgg.gpu_present ? Number((wallSeconds / 3600).toFixed(4)) : null;
   let estCostUsd = null;
   const costConfigPath = path.join(cwd, ".researchloop", "cost.yaml");
   if (fs.existsSync(costConfigPath)) {
@@ -2520,7 +2614,16 @@ async function cmdRun(isBaseline) {
     env,
     data_fingerprint: dataFingerprint,
     est_cost_usd: estCostUsd,
+    gpu_present: gpuAgg.gpu_present || false,
+    gpu_count: gpuAgg.gpu_count || null,
+    gpu_util_max_pct: gpuAgg.gpu_util_max_pct ?? null,
+    gpu_util_mean_pct: gpuAgg.gpu_util_mean_pct ?? null,
+    gpu_memory_peak_mb: gpuAgg.gpu_memory_peak_mb ?? null,
+    gpu_memory_total_mb: gpuAgg.gpu_memory_total_mb ?? null,
+    gpu_hours: gpuHours,
   };
+  if (tags) row.tags = tags;
+  if (parentId) row.parent_id = parentId;
   appendRunRow(cwd, row);
   writeArtifactMetricsJsonl(runDir, metricName, metricSeries);
   writeArtifactManifest(runDir);
@@ -2530,27 +2633,167 @@ async function cmdRun(isBaseline) {
   const metricSuffix = metricValue !== null ? ` ${metricName}=${metricValue}` : "";
   fs.appendFileSync(thread, `- ${finishedAt} ${prefix} ${id} status=${status}${metricSuffix}\n`);
 
-  console.log("---");
-  console.log(`status: ${status}`);
-  console.log(`exit_code: ${result.exitCode}`);
-  if (metricValue !== null) {
-    console.log(`${metricName}: ${metricValue}`);
-  } else {
-    console.log("metric: not parsed");
+  if (!quiet) {
+    console.log("---");
+    console.log(`status: ${status}`);
+    console.log(`exit_code: ${result.exitCode}`);
+    if (metricValue !== null) {
+      console.log(`${metricName}: ${metricValue}`);
+    } else {
+      console.log("metric: not parsed");
+    }
+    if (gpuAgg.gpu_present) {
+      const peak = gpuAgg.gpu_memory_peak_mb ?? "?";
+      const util = gpuAgg.gpu_util_max_pct ?? "?";
+      console.log(`gpu: max_util=${util}% peak_mem=${peak}MB gpu_hours=${gpuHours}`);
+    }
+    console.log(`recorded: ${id}`);
   }
-  console.log(`recorded: ${id}`);
 
-  if (isBaseline && metricValue !== null) {
+  if (isBaseline && metricValue !== null && !suppressGoalUpdate) {
     updateGoalCurrentBest(cwd, metricName, metricValue, id);
     updatePlanBaseline(cwd, metricName, metricValue, id);
-    console.log("goal.md Current Best updated.");
-    console.log("plan.md Current State updated.");
+    if (!quiet) {
+      console.log("goal.md Current Best updated.");
+      console.log("plan.md Current State updated.");
+    }
   }
 
-  if (status === "failed" || status === "timeout" || status === "spawn_error") {
-    process.exitCode = 1;
+  if (!suppressExitCode) {
+    if (status === "failed" || status === "timeout" || status === "spawn_error") {
+      process.exitCode = 1;
+    }
+    if (status === "killed_by_safety") {
+      process.exitCode = 1;
+    }
   }
-  if (status === "killed_by_safety") {
+  return { ok: true, id, status, metricValue, metricName, row, gpuAgg, wallSeconds };
+}
+
+async function cmdRun(isBaseline) {
+  const cwd = targetDir();
+  const goalFields = readGoalFields(cwd);
+  const explicitCommand = option("--command", null);
+  const allowUnsafe = hasFlag("--allow-unsafe");
+  let cmdText = explicitCommand && typeof explicitCommand === "string" ? explicitCommand : "";
+  if (!cmdText) {
+    cmdText = isBaseline
+      ? goalFields.baseline
+      : (goalFields.evaluation || goalFields.baseline);
+  }
+  const metricName = String(option("--metric", goalFields.metric || "val_loss")).trim() || "val_loss";
+  const customRegex = option("--regex", null);
+  const regexSource = customRegex && typeof customRegex === "string" ? customRegex : null;
+  const timeoutSec = Number(option("--timeout", 600));
+  const seedsRaw = option("--seeds", null);
+  const seeds = seedsRaw && typeof seedsRaw === "string" ? parseInt(seedsRaw, 10) : null;
+
+  const enableSystemSampling = !hasFlag("--no-system-sampling");
+
+  if (Number.isFinite(seeds) && seeds > 1 && !isBaseline) {
+    await runWithSeeds({
+      cwd, cmdText, metricName, regexSource, timeoutSec, allowUnsafe, seeds,
+      idBase: option("--id", null),
+      direction: String(option("--direction", goalFields.direction || "lower")).toLowerCase(),
+      enableSystemSampling,
+    });
+    return;
+  }
+
+  await executeRun({
+    cwd, cmdText, metricName, regexSource, timeoutSec, allowUnsafe, isBaseline,
+    idOverride: option("--id", null),
+    enableSystemSampling,
+  });
+}
+
+function applySeedToCommand(cmdText, seed) {
+  if (cmdText.includes("{seed}")) {
+    return cmdText.replace(/\{seed\}/g, String(seed));
+  }
+  return cmdText;
+}
+
+async function runWithSeeds({ cwd, cmdText, metricName, regexSource, timeoutSec, allowUnsafe, seeds, idBase, direction, enableSystemSampling = true }) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const base = idBase && typeof idBase === "string" ? idBase : `run-${stamp}`;
+  const seedList = Array.from({ length: seeds }, (_, i) => i);
+  const seedRows = [];
+  console.log(`autoresearch run --seeds ${seeds}`);
+  console.log(`command_template: ${cmdText}`);
+  console.log(`metric: ${metricName}`);
+  console.log("---");
+  for (const seed of seedList) {
+    const seedId = `${base}-seed${seed}`;
+    const seedCmd = applySeedToCommand(cmdText, seed);
+    const childEnv = { RESEARCHLOOP_SEED: String(seed) };
+    console.log(`[seed ${seed}] ${seedCmd}`);
+    const res = await executeRun({
+      cwd, cmdText: seedCmd, metricName, regexSource, timeoutSec, allowUnsafe,
+      isBaseline: false,
+      idOverride: seedId,
+      extraConfig: { seed, parent_run: base },
+      extraEnv: childEnv,
+      suppressExitCode: true,
+      quiet: true,
+      tags: ["seed-run"],
+      parentId: base,
+      enableSystemSampling,
+    });
+    if (res.ok) {
+      seedRows.push(res);
+      const m = res.metricValue !== null ? `${metricName}=${res.metricValue}` : "metric=?";
+      console.log(`  → ${seedId} status=${res.status} ${m}`);
+    } else {
+      console.log(`  → ${seedId} skipped (${res.status})`);
+    }
+  }
+  const values = seedRows
+    .map((r) => r.metricValue)
+    .filter((v) => Number.isFinite(v));
+  let mean = null;
+  let std = null;
+  let minV = null;
+  let maxV = null;
+  if (values.length > 0) {
+    mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
+    std = Math.sqrt(variance);
+    minV = Math.min(...values);
+    maxV = Math.max(...values);
+  }
+  const aggRow = {
+    id: base,
+    timestamp: new Date().toISOString(),
+    status: values.length === seeds ? "complete" : (values.length > 0 ? "complete_partial" : "complete_no_metric"),
+    agent: "autoresearch run --seeds",
+    command: cmdText,
+    metrics: mean !== null
+      ? { [metricName]: Number(mean.toFixed(6)), [`${metricName}_std`]: Number(std.toFixed(6)) }
+      : {},
+    seeds: {
+      n: seeds,
+      values,
+      mean: mean !== null ? Number(mean.toFixed(6)) : null,
+      std: std !== null ? Number(std.toFixed(6)) : null,
+      min: minV,
+      max: maxV,
+      direction,
+      child_run_ids: seedRows.map((r) => r.id),
+    },
+    notes: "Aggregator row for seed sweep.",
+    tags: ["seed-aggregate"],
+  };
+  appendRunRow(cwd, aggRow);
+  console.log("---");
+  console.log(`runs: ${seedRows.length}/${seeds}`);
+  if (mean !== null) {
+    console.log(`${metricName}: mean=${mean.toFixed(6)} std=${std.toFixed(6)} min=${minV} max=${maxV}`);
+  } else {
+    console.log(`${metricName}: not parsed across any seed`);
+  }
+  console.log(`recorded: ${base}`);
+  if (values.length === 0) {
     process.exitCode = 1;
   }
 }
@@ -4411,6 +4654,444 @@ function cmdRank() {
   }
 }
 
+function parseSweepSpec(text) {
+  const trimmed = text.trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (err) {
+    throw new Error(`sweep spec must be valid JSON (parse error: ${err.message})`);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("sweep spec must be a JSON object");
+  }
+  return parsed;
+}
+
+function expandSweepVariants(spec) {
+  if (Array.isArray(spec.variants) && spec.variants.length) {
+    return spec.variants.map((v, i) => ({ params: v, index: i }));
+  }
+  if (spec.grid && typeof spec.grid === "object") {
+    const axes = Object.entries(spec.grid);
+    if (!axes.length) return [];
+    let combos = [{}];
+    for (const [key, values] of axes) {
+      if (!Array.isArray(values)) {
+        throw new Error(`sweep grid axis "${key}" must be a list`);
+      }
+      const next = [];
+      for (const combo of combos) {
+        for (const v of values) {
+          next.push({ ...combo, [key]: v });
+        }
+      }
+      combos = next;
+    }
+    return combos.map((params, index) => ({ params, index }));
+  }
+  throw new Error("sweep spec must define either `variants` (list) or `grid` (object)");
+}
+
+function renderSweepCommand(template, params) {
+  let out = template;
+  for (const [key, value] of Object.entries(params)) {
+    const re = new RegExp(`\\{${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\}`, "g");
+    out = out.replace(re, String(value));
+  }
+  return out;
+}
+
+async function cmdSweep() {
+  const cwd = targetDir();
+  const specPath = option("--spec", null);
+  if (!specPath || typeof specPath !== "string") {
+    console.error("autoresearch sweep requires --spec <file.json>");
+    process.exitCode = 1;
+    return;
+  }
+  const abs = path.isAbsolute(specPath) ? specPath : path.join(cwd, specPath);
+  if (!fs.existsSync(abs)) {
+    console.error(`sweep spec not found: ${abs}`);
+    process.exitCode = 1;
+    return;
+  }
+  let spec;
+  try {
+    spec = parseSweepSpec(fs.readFileSync(abs, "utf8"));
+  } catch (err) {
+    console.error(`sweep spec error: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+  const template = spec.command_template || spec.command;
+  if (!template || typeof template !== "string") {
+    console.error("sweep spec must include `command_template` (string with {param} placeholders)");
+    process.exitCode = 1;
+    return;
+  }
+  let variants;
+  try {
+    variants = expandSweepVariants(spec);
+  } catch (err) {
+    console.error(`sweep spec error: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!variants.length) {
+    console.error("sweep spec produced 0 variants");
+    process.exitCode = 1;
+    return;
+  }
+
+  const goalFields = readGoalFields(cwd);
+  const metricName = String(option("--metric", spec.metric || goalFields.metric || "val_loss")).trim();
+  const regexSource = option("--regex", spec.regex || null);
+  const timeoutSec = Number(option("--timeout", spec.timeout || 600));
+  const allowUnsafe = hasFlag("--allow-unsafe");
+  const seedsRaw = option("--seeds", spec.seeds || null);
+  const seeds = seedsRaw && typeof seedsRaw !== "boolean" ? parseInt(String(seedsRaw), 10) : null;
+  const dryRun = hasFlag("--dry-run");
+  const direction = String(option("--direction", spec.direction || goalFields.direction || "lower")).toLowerCase();
+  const preferHigher = direction === "higher" || direction === "max" || direction === "maximize";
+  const sweepName = String(spec.name || option("--name", "sweep")).replace(/[^A-Za-z0-9._-]/g, "-");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const sweepId = `${sweepName}-${stamp}`;
+
+  console.log(`autoresearch sweep`);
+  console.log(`spec: ${abs}`);
+  console.log(`name: ${sweepName}`);
+  console.log(`variants: ${variants.length}`);
+  console.log(`metric: ${metricName} (${preferHigher ? "higher" : "lower"})`);
+  if (Number.isFinite(seeds) && seeds > 1) {
+    console.log(`seeds per variant: ${seeds}`);
+  }
+  console.log("---");
+
+  if (dryRun) {
+    for (const variant of variants) {
+      const cmdText = renderSweepCommand(template, variant.params);
+      console.log(`[${variant.index}] ${JSON.stringify(variant.params)} -> ${cmdText}`);
+    }
+    console.log("---");
+    console.log("dry-run: no runs executed");
+    return;
+  }
+
+  const results = [];
+  for (const variant of variants) {
+    const cmdText = renderSweepCommand(template, variant.params);
+    const variantId = `${sweepId}-v${variant.index}`;
+    if (Number.isFinite(seeds) && seeds > 1) {
+      console.log(`[${variant.index}] params=${JSON.stringify(variant.params)} cmd=${cmdText} (seeds=${seeds})`);
+      await runWithSeeds({
+        cwd, cmdText, metricName, regexSource, timeoutSec, allowUnsafe, seeds,
+        idBase: variantId,
+        direction,
+      });
+      const aggRow = readRunRowById(cwd, variantId);
+      results.push({ variant, id: variantId, row: aggRow });
+    } else {
+      console.log(`[${variant.index}] params=${JSON.stringify(variant.params)} cmd=${cmdText}`);
+      const res = await executeRun({
+        cwd, cmdText, metricName, regexSource, timeoutSec, allowUnsafe,
+        isBaseline: false,
+        idOverride: variantId,
+        extraConfig: { sweep: sweepName, sweep_index: variant.index, sweep_params: variant.params },
+        suppressExitCode: true,
+        quiet: true,
+        tags: ["sweep", `sweep:${sweepName}`],
+        parentId: sweepId,
+      });
+      const m = res.metricValue !== null ? `${metricName}=${res.metricValue}` : "metric=?";
+      console.log(`  → ${variantId} status=${res.status} ${m}`);
+      results.push({ variant, id: variantId, row: res.row });
+    }
+  }
+
+  console.log("---");
+  const scored = results
+    .map((r) => ({
+      id: r.id,
+      params: r.variant.params,
+      value: r.row && r.row.metrics ? Number(r.row.metrics[metricName]) : Number.NaN,
+    }))
+    .filter((r) => Number.isFinite(r.value));
+  scored.sort((a, b) => (preferHigher ? b.value - a.value : a.value - b.value));
+  console.log(`sweep: ${sweepName}`);
+  console.log(`completed: ${results.length}/${variants.length}`);
+  console.log(`scored: ${scored.length}`);
+  if (scored.length > 0) {
+    console.log(`best: ${scored[0].id} ${metricName}=${scored[0].value} params=${JSON.stringify(scored[0].params)}`);
+    console.log("top:");
+    for (const entry of scored.slice(0, Math.min(5, scored.length))) {
+      console.log(`- ${entry.id}: ${metricName}=${entry.value} params=${JSON.stringify(entry.params)}`);
+    }
+  }
+
+  const sweepDir = path.join(cwd, ".researchloop", "scratchpad", "sweeps", sweepId);
+  ensureDir(sweepDir);
+  fs.writeFileSync(path.join(sweepDir, "summary.json"), `${JSON.stringify({
+    sweep: sweepName,
+    sweep_id: sweepId,
+    spec_path: path.relative(cwd, abs),
+    metric: metricName,
+    direction: preferHigher ? "higher" : "lower",
+    variants_total: variants.length,
+    variants_completed: results.length,
+    seeds_per_variant: Number.isFinite(seeds) && seeds > 1 ? seeds : 1,
+    scored,
+    best: scored[0] || null,
+  }, null, 2)}\n`);
+  console.log(`summary: ${path.relative(cwd, path.join(sweepDir, "summary.json"))}`);
+}
+
+function detectAnomalies(series, opts = {}) {
+  const { spikeFactor = 5, plateauWindow = 8, plateauTolerance = 0.005 } = opts;
+  const anomalies = [];
+  if (!Array.isArray(series) || series.length === 0) {
+    return anomalies;
+  }
+  for (let i = 0; i < series.length; i += 1) {
+    const v = series[i];
+    if (!Number.isFinite(v)) {
+      anomalies.push({ kind: "divergence", step: i + 1, value: String(v) });
+    }
+  }
+  const finite = series.map((v, i) => ({ v, i })).filter((p) => Number.isFinite(p.v));
+  if (finite.length >= 3) {
+    for (let k = 1; k < finite.length; k += 1) {
+      const window = finite.slice(0, k).map((p) => p.v).slice().sort((a, b) => a - b);
+      const mid = window[Math.floor(window.length / 2)];
+      const ref = Math.max(Math.abs(mid), 1e-9);
+      const curr = finite[k].v;
+      if (Math.abs(curr) > spikeFactor * ref) {
+        anomalies.push({
+          kind: "spike",
+          step: finite[k].i + 1,
+          value: curr,
+          median_prior: Number(mid.toFixed(6)),
+          factor: Number((Math.abs(curr) / ref).toFixed(2)),
+        });
+      }
+    }
+  }
+  if (finite.length >= plateauWindow) {
+    const tail = finite.slice(-plateauWindow).map((p) => p.v);
+    const tailMean = tail.reduce((a, b) => a + b, 0) / tail.length;
+    const tailRange = Math.max(...tail) - Math.min(...tail);
+    const ref = Math.max(Math.abs(tailMean), 1e-9);
+    if (tailRange / ref < plateauTolerance) {
+      anomalies.push({
+        kind: "plateau",
+        window: plateauWindow,
+        mean: Number(tailMean.toFixed(6)),
+        range: Number(tailRange.toFixed(6)),
+        relative_range: Number((tailRange / ref).toFixed(6)),
+      });
+    }
+  }
+  return anomalies;
+}
+
+function cmdAnomalies() {
+  const cwd = targetDir();
+  const runId = option("--id", null);
+  const ledger = path.join(cwd, ".researchloop", "scratchpad", "runs.jsonl");
+  if (!fs.existsSync(ledger)) {
+    console.error("no run ledger found");
+    process.exitCode = 1;
+    return;
+  }
+  const formatJson = String(option("--format", "text")).toLowerCase() === "json";
+  const rows = fs
+    .readFileSync(ledger, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => { try { return JSON.parse(line); } catch { return null; } })
+    .filter(Boolean);
+  const candidates = runId && typeof runId === "string"
+    ? rows.filter((r) => r.id === runId)
+    : rows.filter((r) => r.metric_history && Object.keys(r.metric_history).length > 0);
+  if (!candidates.length) {
+    if (formatJson) {
+      console.log(JSON.stringify({ runs: [] }));
+    } else {
+      console.log("no runs with metric_history found");
+    }
+    return;
+  }
+  const report = [];
+  for (const row of candidates) {
+    const history = row.metric_history || {};
+    for (const [metric, series] of Object.entries(history)) {
+      if (!Array.isArray(series) || series.length === 0) continue;
+      const anomalies = detectAnomalies(series);
+      report.push({
+        run_id: row.id,
+        metric,
+        points: series.length,
+        anomalies,
+      });
+    }
+  }
+  if (formatJson) {
+    console.log(JSON.stringify({ runs: report }, null, 2));
+    return;
+  }
+  if (!report.length) {
+    console.log("no metric history found for selected runs");
+    return;
+  }
+  for (const entry of report) {
+    console.log(`run: ${entry.run_id}`);
+    console.log(`metric: ${entry.metric}`);
+    console.log(`points: ${entry.points}`);
+    if (!entry.anomalies.length) {
+      console.log("anomalies: none detected");
+      console.log("");
+      continue;
+    }
+    console.log(`anomalies: ${entry.anomalies.length}`);
+    for (const a of entry.anomalies) {
+      if (a.kind === "divergence") {
+        console.log(`- divergence at step ${a.step}: ${a.value}`);
+      } else if (a.kind === "spike") {
+        console.log(`- spike at step ${a.step}: value=${a.value} (median prior=${a.median_prior}, factor=${a.factor}x)`);
+      } else if (a.kind === "plateau") {
+        console.log(`- plateau: last ${a.window} steps within ${(a.relative_range * 100).toFixed(2)}% of ${a.mean}`);
+      }
+    }
+    console.log("");
+  }
+}
+
+async function cmdLoop() {
+  const cwd = targetDir();
+  const goalFields = readGoalFields(cwd);
+  const explicitCommand = option("--command", null);
+  let cmdText = explicitCommand && typeof explicitCommand === "string" ? explicitCommand : "";
+  if (!cmdText) {
+    cmdText = goalFields.evaluation || goalFields.baseline;
+  }
+  if (!cmdText) {
+    console.error("autoresearch loop: no command. Pass --command CMD or set evaluation/baseline in goal.md");
+    process.exitCode = 1;
+    return;
+  }
+  const itersRaw = option("--iters", "3");
+  const iters = Math.max(1, parseInt(String(itersRaw), 10) || 3);
+  const metricName = String(option("--metric", goalFields.metric || "val_loss")).trim();
+  const regexSource = option("--regex", null);
+  const timeoutSec = Number(option("--timeout", 600));
+  const allowUnsafe = hasFlag("--allow-unsafe");
+  const direction = String(option("--direction", goalFields.direction || "lower")).toLowerCase();
+  const preferHigher = direction === "higher" || direction === "max" || direction === "maximize";
+  const patchCmd = option("--patch-cmd", null);
+  const revertOnRegression = hasFlag("--revert-on-regression");
+  const commitOnWin = hasFlag("--commit-on-win");
+  const keepIf = String(option("--keep-if", "better")).toLowerCase();
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const loopId = String(option("--id", `loop-${stamp}`));
+  const loopStateFile = path.join(cwd, ".researchloop", "scratchpad", "loop_state.json");
+  let priorState = {};
+  if (fs.existsSync(loopStateFile)) {
+    try { priorState = JSON.parse(fs.readFileSync(loopStateFile, "utf8")); } catch { priorState = {}; }
+  }
+  const startingBest = priorState && priorState.best && Number.isFinite(Number(priorState.best.value))
+    ? Number(priorState.best.value)
+    : null;
+  let bestSoFar = startingBest;
+  let bestId = priorState && priorState.best ? priorState.best.id : null;
+
+  console.log(`autoresearch loop`);
+  console.log(`command: ${cmdText}`);
+  console.log(`iters: ${iters}`);
+  console.log(`metric: ${metricName} (${preferHigher ? "higher" : "lower"})`);
+  if (patchCmd && typeof patchCmd === "string") console.log(`patch-cmd: ${patchCmd}`);
+  if (revertOnRegression) console.log("revert-on-regression: on");
+  if (commitOnWin) console.log("commit-on-win: on");
+  if (bestSoFar !== null) console.log(`prior best: ${bestId} = ${bestSoFar}`);
+  console.log("---");
+
+  const iterations = [];
+  for (let i = 0; i < iters; i += 1) {
+    const iterId = `${loopId}-iter${i}`;
+    console.log(`[iter ${i}] ${iterId}`);
+    if (patchCmd && typeof patchCmd === "string") {
+      const patchResult = runCapture(patchCmd, cwd);
+      if (!patchResult.ok) {
+        console.log(`  patch failed: skipping iter`);
+        iterations.push({ iter: i, id: iterId, status: "patch_failed", value: null, kept: false });
+        continue;
+      }
+    }
+    const res = await executeRun({
+      cwd, cmdText, metricName, regexSource, timeoutSec, allowUnsafe,
+      isBaseline: false,
+      idOverride: iterId,
+      extraConfig: { loop_id: loopId, loop_iter: i },
+      suppressExitCode: true,
+      quiet: true,
+      tags: ["loop", `loop:${loopId}`],
+      parentId: loopId,
+    });
+    const value = res.metricValue;
+    let improved = false;
+    let same = false;
+    if (value !== null && Number.isFinite(value)) {
+      if (bestSoFar === null) {
+        improved = true;
+      } else if (preferHigher && value > bestSoFar) {
+        improved = true;
+      } else if (!preferHigher && value < bestSoFar) {
+        improved = true;
+      } else if (value === bestSoFar) {
+        same = true;
+      }
+    }
+    const keep = improved || (same && keepIf === "same");
+    if (improved) {
+      bestSoFar = value;
+      bestId = iterId;
+    }
+    iterations.push({ iter: i, id: iterId, status: res.status, value, improved, kept: keep });
+    const tag = improved ? "WIN" : (same ? "same" : "regression");
+    console.log(`  → status=${res.status} ${metricName}=${value} (${tag})`);
+    if (!keep) {
+      if (revertOnRegression) {
+        const rev = runCapture("git checkout -- .", cwd);
+        if (rev.ok) console.log("  reverted working tree (git checkout -- .)");
+        else console.log("  revert failed (no git repo or no tracked changes)");
+      }
+    } else if (commitOnWin) {
+      const stageRes = runCapture("git add -A", cwd);
+      if (stageRes.ok) {
+        const message = `autoresearch loop: keep ${iterId} (${metricName}=${value})`;
+        const c = runCapture(`git commit -m ${JSON.stringify(message)}`, cwd);
+        if (c.ok) console.log("  committed working tree");
+      }
+    }
+  }
+
+  console.log("---");
+  console.log(`iterations: ${iterations.length}`);
+  console.log(`best: ${bestId} = ${bestSoFar}`);
+  const wins = iterations.filter((it) => it.improved).length;
+  console.log(`wins: ${wins}/${iterations.length}`);
+  const newState = {
+    loop_id: loopId,
+    started_at_best: startingBest,
+    best: bestId ? { id: bestId, value: bestSoFar, metric: metricName, direction: preferHigher ? "higher" : "lower" } : null,
+    last_iterations: iterations,
+    updated_at: new Date().toISOString(),
+  };
+  ensureDir(path.dirname(loopStateFile));
+  fs.writeFileSync(loopStateFile, `${JSON.stringify(newState, null, 2)}\n`);
+  console.log(`state: ${path.relative(cwd, loopStateFile)}`);
+}
+
 function cmdHelp() {
   console.log(`AutoResearch-AI ${packageVersion()}
 
@@ -4425,8 +5106,11 @@ Usage:
   autoresearch doctor [--dir PATH] [--python PATH] [--repair-plan]
   autoresearch replay [--dir PATH] [--id RUN_ID]
   autoresearch record [--dir PATH] [--id ID] [--status STATUS] [--metric key=value] [--note TEXT]    (manual escape hatch; prefer 'run')
-  autoresearch run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
+  autoresearch run [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--seeds N] [--allow-unsafe]
   autoresearch baseline [--dir PATH] [--id ID] [--command CMD] [--metric NAME] [--regex PATTERN] [--timeout SECONDS] [--allow-unsafe]
+  autoresearch sweep --spec FILE.json [--metric NAME] [--seeds N] [--direction lower|higher] [--dry-run] [--allow-unsafe] [--dir PATH]
+  autoresearch loop --command CMD [--iters N] [--metric NAME] [--direction lower|higher] [--patch-cmd CMD] [--revert-on-regression] [--commit-on-win] [--keep-if better|same] [--dir PATH]
+  autoresearch anomalies [--id RUN_ID] [--format text|json] [--dir PATH]
   autoresearch scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]
@@ -4531,6 +5215,12 @@ async function main() {
     cmdQuery();
   } else if (command === "approvals") {
     cmdApprovals();
+  } else if (command === "sweep") {
+    await cmdSweep();
+  } else if (command === "loop") {
+    await cmdLoop();
+  } else if (command === "anomalies" || command === "anomaly") {
+    cmdAnomalies();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();

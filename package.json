@@ -1,6 +1,6 @@
 {
   "name": "autoresearch-ai",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Install an autonomous AI research harness for Codex, Claude Code, Hermes, and other coding agents.",
   "type": "module",
   "bin": {
@@ -31,7 +31,7 @@
   "scripts": {
     "smoke": "node ./bin/researchloop.js --help",
     "smoke:e2e": "bash ./scripts/smoke-e2e.sh",
-    "test": "npm run smoke && npm run smoke:e2e && npm run test:setup && npm run test:compare && npm run test:run && npm run test:scan-papers && npm run test:goal && npm run test:idea && npm run test:team && npm run test:dashboard && npm run test:prompts && npm run test:focus-prompts && npm run test:site && npm run test:adapters && npm run test:artifact-contract",
+    "test": "npm run smoke && npm run smoke:e2e && npm run test:setup && npm run test:compare && npm run test:run && npm run test:scan-papers && npm run test:goal && npm run test:idea && npm run test:team && npm run test:dashboard && npm run test:prompts && npm run test:focus-prompts && npm run test:site && npm run test:adapters && npm run test:artifact-contract && npm run test:sweep && npm run test:seeds && npm run test:anomalies && npm run test:loop && npm run test:gpu-ledger",
     "test:release": "npm test && npm run test:packed",
     "test:goal": "bash ./scripts/test-goal.sh",
     "test:idea": "bash ./scripts/test-idea.sh",
@@ -46,7 +46,12 @@
     "test:site": "bash ./scripts/test-site.sh",
     "test:adapters": "bash ./scripts/test-adapters.sh",
     "test:artifact-contract": "bash ./scripts/test-artifact-contract.sh",
-    "test:packed": "bash ./scripts/test-packed.sh"
+    "test:packed": "bash ./scripts/test-packed.sh",
+    "test:sweep": "bash ./scripts/test-sweep.sh",
+    "test:seeds": "bash ./scripts/test-seeds.sh",
+    "test:anomalies": "bash ./scripts/test-anomalies.sh",
+    "test:loop": "bash ./scripts/test-loop.sh",
+    "test:gpu-ledger": "bash ./scripts/test-gpu-ledger.sh"
   },
   "keywords": [
     "ai-research",

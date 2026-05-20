@@ -168,12 +168,45 @@ The startup plan is in `docs/startup/`.
 - `autoresearch prompt` prints an agent-ready autonomous research prompt, with optional focus playbooks.
 - `autoresearch team` generates a local multi-agent development board for the AutoResearch-AI repo or another project.
 - `autoresearch baseline` runs the baseline command, parses the metric, and locks it into `goal.md` and `plan.md`.
-- `autoresearch run` executes a training or eval command, streams the log, parses the metric, and records the run.
+- `autoresearch run` executes a training or eval command, streams the log, parses the metric, and records the run. Add `--seeds N` to run the same command across N seeds (substituted as `{seed}` and exported as `$RESEARCHLOOP_SEED`) and record a mean/std aggregator row.
+- `autoresearch sweep --spec FILE.json` runs a declarative variant queue (`variants` list or `grid` cross-product) through `run`, with optional `--seeds N` per variant, `--dry-run`, and a `summary.json` per sweep.
+- `autoresearch loop --command CMD [--iters N]` closes the ratchet — runs N iterations, keeps the best by metric in `loop_state.json`, with optional `--patch-cmd`, `--revert-on-regression`, and `--commit-on-win`.
+- `autoresearch anomalies [--id RUN_ID]` scans recorded metric history for divergence (NaN/inf), spikes, and plateaus.
 - `autoresearch record` appends a structured run result to `runs.jsonl` (use for manual rows).
-- `autoresearch compare` ranks runs by a chosen metric.
+- `autoresearch compare` ranks runs by a chosen metric and reports GPU-hours and peak memory when present.
 - `autoresearch report` summarizes the run ledger.
 - `autoresearch dashboard` starts a local localhost dashboard for experiment tracking.
 - `autoresearch doctor` checks basic local tooling.
+
+GPU stats are captured automatically per run when `nvidia-smi` is present: `gpu_util_max_pct`, `gpu_util_mean_pct`, `gpu_memory_peak_mb`, `gpu_memory_total_mb`, and `gpu_hours` are written into the ledger row. The fields exist (null) on non-GPU hosts so the schema stays stable.
+
+### Proposal and analysis
+
+- `autoresearch propose` proposes N grounded experiments in `propose`, `novel`, or `autonomous` mode, with optional focus (`hyperparameters`, `architecture`, `attention`, `data`).
+- `autoresearch rank` ranks a list of proposed experiments against the goal.
+- `autoresearch suggest` suggests next experiments based on the existing run ledger.
+- `autoresearch topic "<text>"` runs the baseline-aware intake for a research topic.
+- `autoresearch query "<expression>"` queries the run ledger and prints `jsonl` or `table`.
+- `autoresearch failures` surfaces the top failure patterns across runs.
+- `autoresearch diff-runs --id-a <id> --id-b <id>` diffs two runs across config and metrics, in text / json / markdown.
+- `autoresearch param-importance` ranks which params moved the metric most.
+
+### Run lifecycle and ledger hygiene
+
+- `autoresearch baseline-status` shows the current baseline lock state.
+- `autoresearch baseline --lock` / `--unlock` locks or unlocks the baseline.
+- `autoresearch replay --id <run-id>` replays a recorded run.
+- `autoresearch prune` prunes runs by age or status, with `--dry-run` and `--no-keep-promoted`.
+- `autoresearch tag --id <run-id> --add/--remove/--list` manages tags on a run.
+
+### Reproducibility and reporting
+
+- `autoresearch data-fingerprint` hashes input data for reproducibility.
+- `autoresearch model-card --id <run-id>` emits a model-card markdown for a run.
+- `autoresearch digest --since <duration>` summarizes recent activity in text / json / markdown.
+
+### Tests
+
 - `npm test` runs every fast check below in sequence. CI runs this on Node 18 / 20 / 22 against ubuntu and macos for every push and PR.
 - `npm run test:release` adds the packed-tarball install check on top of `npm test`. Run this before publishing.
 - `npm run test:setup` runs the blank-repo and minimal-fixture setup checks.
@@ -189,6 +222,11 @@ The startup plan is in `docs/startup/`.
 - `npm run test:site` checks the public landing page copy (reads the file directly; no server needed).
 - `npm run test:adapters` checks repo-shape adapter detection against negative cases.
 - `npm run test:packed` packs the tarball, installs into an isolated npm prefix, and runs the harness end-to-end.
+- `npm run test:sweep` checks the sweep command for both `variants` and `grid` specs, including dry-run.
+- `npm run test:seeds` checks `--seeds N`, `{seed}` substitution, and the mean/std aggregator row.
+- `npm run test:anomalies` checks spike, plateau, and divergence detection in text and JSON output.
+- `npm run test:loop` checks the ratchet loop tracks running-best across iterations and persists `loop_state.json`.
+- `npm run test:gpu-ledger` checks the GPU fields are present (and null) on non-GPU hosts and that `compare` skips GPU lines.
 
 ## Contributing
 
