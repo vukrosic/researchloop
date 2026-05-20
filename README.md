@@ -181,7 +181,8 @@ The startup plan is in `docs/startup/`.
 - `autoresearch report` summarizes the run ledger, including total wall time and estimated cost when `.researchloop/cost.yaml` is configured. Use `--format markdown --out report.md --include-plots` to write a shareable experiment report with SVG plots.
 - `autoresearch audit <file.md>` checks numeric metric claims in a markdown report against `runs.jsonl` and exits non-zero on unmatched claims.
 - `autoresearch curves --id <run-id>` prints the streamed metric series as a unicode sparkline plus min/max/final stats. `--format json|jsonl` for scripting. Curves are now written live to `metrics.jsonl` during the run; the dashboard exposes them at `/api/curves?run=<id>`.
-- `autoresearch promote --id <run-id> [--note TEXT]` copies a winning run's artifacts (env, config, metrics, code diff, log) into `.researchloop/winners/<id>/`, snapshots `goal.md`, writes `PROMOTION.md`, and flips the row's `status` to `promoted`. Refuses to promote a `failed | timeout | killed_by_*` row unless `--force`.
+- `autoresearch promote --id <run-id> [--note TEXT]` copies a winning run's artifacts (env, config, metrics, code diff, log) into `.researchloop/winners/<id>/`, snapshots `goal.md`, writes `PROMOTION.md` + `review.md`, and flips the row's `status` to `promoted`. Refuses to promote a `failed | timeout | killed_by_*` row unless `--force`. Auto-runs the same checks as `autoresearch review` and blocks on failure unless `--force` or `--skip-review`.
+- `autoresearch review --id <run-id>` runs programmatic checks against a recorded run (status healthy, primary metric finite, env captured, working tree not explicitly dirty, curve present, artifact bundle intact). `--format text|json|markdown`, `--out FILE.md` to persist. Exits non-zero on failure. Used as the gate inside `promote`.
 - `autoresearch dashboard` starts a local localhost dashboard for experiment tracking.
 - `autoresearch doctor` checks basic local tooling.
 
@@ -281,6 +282,7 @@ New run rows then include `est_cost_usd`, computed as `wall_seconds / 3600 * hou
 - `npm run test:curves` checks `autoresearch curves --id <id>` reads the streamed series, prints a sparkline and summary, and emits JSON/JSONL.
 - `npm run test:promote` checks `autoresearch promote --id <id>` copies the run artifacts into `winners/`, flips the row to `promoted`, refuses bad statuses without `--force`, and errors on missing/unknown ids.
 - `npm run test:retry` checks the eval.yaml `retry:` rules: an OOM error on attempt 1 triggers `halve:batch_size`, attempt 2 succeeds with `retry_of` pointing at the original id; `max_retries: 0` disables retries; no rules means no retry.
+- `npm run test:review` checks `autoresearch review` passes a good run, fails a failed run, supports text/json/markdown output, writes `--out` to file, and that `promote` runs the review automatically and writes `winners/<id>/review.md` (or skips it under `--skip-review`).
 
 ## Contributing
 

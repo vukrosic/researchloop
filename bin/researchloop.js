@@ -4089,9 +4089,128 @@ function copyFileIfExists(src, dest) {
   return true;
 }
 
+// G19 minimal: run programmatic checks against a row + its artifact bundle.
+// Returns { pass, checks: [{name, pass, detail}] } — pass is true iff every
+// non-warn check passed. Used by both `autoresearch review` and `promote`
+// (unless --skip-review is set).
+function runReviewChecks(cwd, row) {
+  const checks = [];
+  const runId = row?.id || "(unknown)";
+  const runDir = path.join(cwd, ".researchloop", "scratchpad", "runs", runId);
+  const push = (name, pass, detail = "") => checks.push({ name, pass: !!pass, detail });
+
+  // 1. Status is healthy.
+  const okStatuses = new Set(["complete", "promoted", "kept"]);
+  push(
+    "status_ok",
+    okStatuses.has(row.status),
+    `status=${row.status}`,
+  );
+
+  // 2. Final primary metric is present and finite.
+  const metricNames = Object.keys(row.metrics || {});
+  const primary = metricNames[0] || null;
+  const primaryValue = primary ? Number(row.metrics[primary]) : NaN;
+  push(
+    "metric_finite",
+    primary !== null && Number.isFinite(primaryValue),
+    primary ? `${primary}=${row.metrics[primary]}` : "no metric on row",
+  );
+
+  // 3. Env captured (G14) and working tree was clean.
+  const env = row.env || {};
+  push(
+    "env_captured",
+    !!env && (env.git_sha || env.python || env.os),
+    env.git_sha ? `git_sha=${env.git_sha}` : "no git_sha",
+  );
+  // Pass when the working tree is clean (git_dirty: false) OR when there's
+  // no git context at all (git_dirty: null/undefined). Only an explicit
+  // dirty tree (git_dirty: true) fails the check.
+  push(
+    "git_clean",
+    env.git_dirty !== true,
+    `git_dirty=${env.git_dirty}`,
+  );
+
+  // 4. Streamed metric series is non-trivial.
+  const history = row.metric_history && primary ? row.metric_history[primary] : null;
+  const historyLen = Array.isArray(history) ? history.length : 0;
+  push(
+    "curve_present",
+    historyLen >= 1,
+    `samples=${historyLen}`,
+  );
+
+  // 5. Per-run artifact bundle is intact.
+  const requiredFiles = ["env.json", "config.json", "MANIFEST.json"];
+  const missing = requiredFiles.filter((f) => !fs.existsSync(path.join(runDir, f)));
+  push(
+    "artifacts_present",
+    missing.length === 0,
+    missing.length === 0 ? "ok" : `missing: ${missing.join(", ")}`,
+  );
+
+  const pass = checks.every((c) => c.pass);
+  return { pass, checks, run_id: runId, primary_metric: primary, primary_value: Number.isFinite(primaryValue) ? primaryValue : null };
+}
+
+function renderReviewMarkdown(review) {
+  const lines = [];
+  lines.push(`# Review: ${review.run_id}`);
+  lines.push("");
+  lines.push(`- result: ${review.pass ? "**PASS**" : "**FAIL**"}`);
+  if (review.primary_metric) {
+    lines.push(`- ${review.primary_metric}: ${review.primary_value ?? "null"}`);
+  }
+  lines.push(`- generated_at: ${new Date().toISOString()}`);
+  lines.push("");
+  lines.push("| Check | Result | Detail |");
+  lines.push("| --- | --- | --- |");
+  for (const c of review.checks) {
+    lines.push(`| ${c.name} | ${c.pass ? "pass" : "FAIL"} | ${c.detail.replace(/\|/g, "\\|")} |`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+function cmdReview() {
+  const cwd = targetDir();
+  const runId = String(option("--id", positionalText(["--id", "--format", "--dir", "--out"]))).trim();
+  if (!runId) {
+    console.error("autoresearch review: missing --id <run-id>");
+    process.exitCode = 1;
+    return;
+  }
+  const row = readRunRowById(cwd, runId);
+  if (!row) {
+    console.error(`autoresearch review: no run found for id: ${runId}`);
+    process.exitCode = 1;
+    return;
+  }
+  const review = runReviewChecks(cwd, row);
+  const format = String(option("--format", "text")).toLowerCase();
+  if (format === "json") {
+    console.log(JSON.stringify(review, null, 2));
+  } else if (format === "markdown") {
+    console.log(renderReviewMarkdown(review));
+  } else {
+    console.log(`review: ${review.run_id}`);
+    console.log(`result: ${review.pass ? "pass" : "FAIL"}`);
+    for (const c of review.checks) {
+      console.log(`  ${c.pass ? "ok" : "FAIL"}  ${c.name.padEnd(20)} ${c.detail}`);
+    }
+  }
+  const outPath = option("--out", null);
+  if (outPath && typeof outPath === "string") {
+    fs.writeFileSync(path.resolve(cwd, outPath), renderReviewMarkdown(review));
+    console.log(`wrote: ${outPath}`);
+  }
+  if (!review.pass) process.exitCode = 1;
+}
+
 function cmdPromote() {
   const cwd = targetDir();
-  const runId = String(option("--id", positionalText(["--id", "--note", "--dir", "--force"]))).trim();
+  const runId = String(option("--id", positionalText(["--id", "--note", "--dir", "--force", "--skip-review"]))).trim();
   if (!runId) {
     console.error("autoresearch promote: missing --id <run-id>");
     process.exitCode = 1;
@@ -4099,6 +4218,7 @@ function cmdPromote() {
   }
   const note = String(option("--note", "")).trim();
   const force = hasFlag("--force");
+  const skipReview = hasFlag("--skip-review");
 
   const row = readRunRowById(cwd, runId);
   if (!row) {
@@ -4117,8 +4237,32 @@ function cmdPromote() {
     return;
   }
 
+  // G19: run the auto-review unless explicitly skipped. Failed checks block
+  // promotion; --force can override but emits a loud warning. --skip-review
+  // bypasses the review entirely (also loud).
+  let review = null;
+  if (skipReview) {
+    console.error("WARNING: --skip-review bypasses automated checks. The promoted winner is not vetted.");
+  } else {
+    review = runReviewChecks(cwd, row);
+    if (!review.pass && !force) {
+      console.error(`autoresearch promote: review failed for ${runId}. Use --force to promote anyway, or --skip-review to bypass review entirely.`);
+      for (const c of review.checks) {
+        if (!c.pass) console.error(`  FAIL ${c.name}: ${c.detail}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    if (!review.pass && force) {
+      console.error("WARNING: review failed but --force was set; promoting anyway.");
+    }
+  }
+
   const winnersDir = path.join(cwd, ".researchloop", "winners", runId);
   ensureDir(winnersDir);
+  if (review) {
+    fs.writeFileSync(path.join(winnersDir, "review.md"), renderReviewMarkdown(review));
+  }
 
   // Copy the per-run artifact bundle.
   const runDir = path.join(cwd, ".researchloop", "scratchpad", "runs", runId);
@@ -6800,7 +6944,8 @@ Usage:
   autoresearch topic "<text>" [--mode propose|novel|autonomous] [--dir PATH] [--write]
   autoresearch query "<expression>" [--format jsonl|table] [--dir PATH]
   autoresearch curves --id <run-id> [--format text|json|jsonl] [--dir PATH]
-  autoresearch promote --id <run-id> [--note TEXT] [--force] [--dir PATH]
+  autoresearch promote --id <run-id> [--note TEXT] [--force] [--skip-review] [--dir PATH]
+  autoresearch review --id <run-id> [--format text|json|markdown] [--out FILE.md] [--dir PATH]
   autoresearch --version
 
 Aliases:
@@ -6907,6 +7052,8 @@ async function main() {
     cmdCurves();
   } else if (command === "promote") {
     cmdPromote();
+  } else if (command === "review") {
+    cmdReview();
   } else {
     console.error(`Unknown command: ${command}`);
     cmdHelp();
