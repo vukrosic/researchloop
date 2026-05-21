@@ -75,9 +75,9 @@ gates: []
 
 retry: []
 
-# --- Reserved (not yet active) --------------------------------------------
+# --- Optional checkpoint-aware resume (G09) --------------------------------
 #
 # metrics:              # G04 full multi-metric schema (regex / jsonpath / source)
 # curves:               # G06 named curve regex declarations
-# checkpoint_glob:      # G09 newest checkpoint to record per run
-# resume_flag_template: # G09 e.g. "--resume {path}"
+# checkpoint_glob: "checkpoints/*.pt"
+# resume_flag_template: "--resume {path}"

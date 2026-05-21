@@ -2903,20 +2903,59 @@ function parseMetricFromOutput(output, metricName, customRegexSource) {
   return null;
 }
 
-// Eval config (G04/G05/G11) — parses .researchloop/eval.yaml without a YAML dep.
-// Only `gates:` and `early_stop:` are wired today; other keys are reserved.
+// Eval config (G04/G05/G09/G11) — parses .researchloop/eval.yaml without a YAML dep.
+// Keep this intentionally small: top-level scalar keys and inline-list rules.
 
 function loadEvalConfig(cwd) {
   const evalFile = path.join(cwd, ".researchloop", "eval.yaml");
   if (!fs.existsSync(evalFile)) {
-    return { earlyStop: [], gates: [], present: false };
+    return { earlyStop: [], gates: [], checkpointGlob: null, resumeFlagTemplate: null, present: false };
   }
   const raw = fs.readFileSync(evalFile, "utf8");
   return {
     earlyStop: parseEvalListSection(raw, "early_stop"),
     gates: parseEvalListSection(raw, "gates"),
+    checkpointGlob: parseEvalScalar(raw, "checkpoint_glob"),
+    resumeFlagTemplate: parseEvalScalar(raw, "resume_flag_template"),
     present: true,
   };
+}
+
+function stripYamlInlineComment(text) {
+  let inStr = null;
+  let out = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inStr) {
+      out += ch;
+      if (ch === inStr && text[i - 1] !== "\\") inStr = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inStr = ch;
+      out += ch;
+      continue;
+    }
+    if (ch === "#") break;
+    out += ch;
+  }
+  return out.trim();
+}
+
+function parseEvalScalar(text, key) {
+  const re = new RegExp(`^${escapeRegExp(key)}\\s*:\\s*(.*)$`);
+  for (const rawLine of text.split(/\r?\n/)) {
+    if (/^\s*#/.test(rawLine)) continue;
+    const match = rawLine.match(re);
+    if (!match) continue;
+    let value = stripYamlInlineComment(match[1] || "");
+    if (!value || value === "null" || value === "~" || value === "[]") return null;
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    return value.trim() || null;
+  }
+  return null;
 }
 
 function parseEvalListSection(text, sectionName) {
@@ -2991,6 +3030,155 @@ function parseInlineObject(text) {
     obj[key] = value;
   }
   return obj;
+}
+
+function toPosixPath(filePath) {
+  return String(filePath).split(path.sep).join("/");
+}
+
+function hasGlobMagic(pattern) {
+  return /[*?\[]/.test(String(pattern || ""));
+}
+
+function globStaticBase(pattern) {
+  const normalized = String(pattern || "").replace(/\\/g, "/").replace(/^\.\//, "");
+  const firstMagic = normalized.search(/[*?\[]/);
+  if (firstMagic === -1) {
+    const dir = path.posix.dirname(normalized);
+    return dir === "." ? "." : dir;
+  }
+  const prefix = normalized.slice(0, firstMagic);
+  const slash = prefix.lastIndexOf("/");
+  if (slash === -1) return ".";
+  const dir = prefix.slice(0, slash);
+  return dir || ".";
+}
+
+function globPatternToRegex(pattern) {
+  const normalized = String(pattern || "").replace(/\\/g, "/").replace(/^\.\//, "");
+  let out = "^";
+  for (let i = 0; i < normalized.length; i += 1) {
+    const ch = normalized[i];
+    if (ch === "*") {
+      if (normalized[i + 1] === "*") {
+        i += 1;
+        if (normalized[i + 1] === "/") {
+          i += 1;
+          out += "(?:.*/)?";
+        } else {
+          out += ".*";
+        }
+      } else {
+        out += "[^/]*";
+      }
+      continue;
+    }
+    if (ch === "?") {
+      out += "[^/]";
+      continue;
+    }
+    out += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  out += "$";
+  return new RegExp(out);
+}
+
+function collectFilesForGlob(baseDir, out = [], limit = 20000) {
+  if (out.length >= limit) return out;
+  let entries;
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (out.length >= limit) break;
+    const full = path.join(baseDir, entry.name);
+    if (entry.isDirectory()) {
+      if ([".git", "node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache"].includes(entry.name)) {
+        continue;
+      }
+      collectFilesForGlob(full, out, limit);
+    } else if (entry.isFile()) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function checkpointResult(cwd, filePath, stat) {
+  const absolute = path.resolve(filePath);
+  return {
+    absolute,
+    relative: toPosixPath(path.relative(cwd, absolute)),
+    mtimeMs: stat.mtimeMs,
+  };
+}
+
+function findNewestCheckpoint(cwd, pattern) {
+  if (!pattern || typeof pattern !== "string") return null;
+  const normalized = pattern.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!normalized) return null;
+  if (!hasGlobMagic(normalized)) {
+    const filePath = path.resolve(cwd, normalized);
+    try {
+      const stat = fs.statSync(filePath);
+      return stat.isFile() ? checkpointResult(cwd, filePath, stat) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const base = globStaticBase(normalized);
+  const baseDir = path.resolve(cwd, base);
+  if (!fs.existsSync(baseDir)) return null;
+  const re = globPatternToRegex(normalized);
+  let best = null;
+  for (const filePath of collectFilesForGlob(baseDir)) {
+    const rel = toPosixPath(path.relative(cwd, filePath));
+    if (!re.test(rel)) continue;
+    let stat;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      continue;
+    }
+    if (!stat.isFile()) continue;
+    const hit = checkpointResult(cwd, filePath, stat);
+    if (!best || hit.mtimeMs > best.mtimeMs || (hit.mtimeMs === best.mtimeMs && hit.relative > best.relative)) {
+      best = hit;
+    }
+  }
+  return best;
+}
+
+function existingCheckpointFromRow(cwd, row) {
+  if (!row || !row.last_checkpoint || typeof row.last_checkpoint !== "string") return null;
+  const rel = row.last_checkpoint.trim();
+  if (!rel) return null;
+  const absolute = path.isAbsolute(rel) ? rel : path.resolve(cwd, rel);
+  try {
+    const stat = fs.statSync(absolute);
+    return stat.isFile() ? checkpointResult(cwd, absolute, stat) : null;
+  } catch {
+    return null;
+  }
+}
+
+function shellQuote(value) {
+  const text = String(value);
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(text)) return text;
+  return `'${text.replace(/'/g, "'\\''")}'`;
+}
+
+function applyResumeFlagTemplate(commandText, template, checkpointRel) {
+  const flagTemplate = template && typeof template === "string" ? template : "--resume {path}";
+  const quotedPath = shellQuote(checkpointRel);
+  const flag = flagTemplate
+    .replace(/\{path\}/g, quotedPath)
+    .replace(/\{checkpoint\}/g, quotedPath)
+    .trim();
+  return flag ? `${commandText} ${flag}` : commandText;
 }
 
 // Retry rules (G12): same loader pattern as gates / early_stop.
@@ -3592,6 +3780,13 @@ async function executeRun(opts) {
   // Streaming metric pipeline (G06 minimal): line-by-line parse, push to
   // metrics.jsonl live, evaluate early_stop (G11) per sample.
   const evalConfig = loadEvalConfig(cwd);
+  let lastCheckpoint = null;
+  const refreshLastCheckpoint = () => {
+    if (!evalConfig.checkpointGlob) return null;
+    const hit = findNewestCheckpoint(cwd, evalConfig.checkpointGlob);
+    if (hit) lastCheckpoint = hit;
+    return hit;
+  };
   const liveMetricsPath = path.join(runDir, "metrics.jsonl");
   fs.writeFileSync(liveMetricsPath, "");
   const liveStream = fs.createWriteStream(liveMetricsPath, { flags: "a" });
@@ -3639,6 +3834,7 @@ async function executeRun(opts) {
     }
     const step = streamedSeries.length + 1;
     streamedSeries.push(value);
+    refreshLastCheckpoint();
     try {
       liveStream.write(`${JSON.stringify({ metric: metricName, step, value: Number.isFinite(value) ? value : null, raw })}\n`);
     } catch { /* best-effort */ }
@@ -3664,6 +3860,7 @@ async function executeRun(opts) {
   }
   const gpuAgg = (stopSampler.getAggregates && stopSampler.getAggregates()) || {};
   const finishedAt = new Date().toISOString();
+  refreshLastCheckpoint();
 
   let status;
   let killReason = null;
@@ -3745,6 +3942,9 @@ async function executeRun(opts) {
     gpu_memory_total_mb: gpuAgg.gpu_memory_total_mb ?? null,
     gpu_hours: gpuHours,
   };
+  if (evalConfig.checkpointGlob) {
+    row.last_checkpoint = lastCheckpoint ? lastCheckpoint.relative : null;
+  }
   if (killReason) row.kill_reason = killReason;
   if (gateResult.reasons.length) row.gate_reasons = gateResult.reasons;
   if (tags) row.tags = tags;
@@ -3783,6 +3983,9 @@ async function executeRun(opts) {
       const peak = gpuAgg.gpu_memory_peak_mb ?? "?";
       const util = gpuAgg.gpu_util_max_pct ?? "?";
       console.log(`gpu: max_util=${util}% peak_mem=${peak}MB gpu_hours=${gpuHours}`);
+    }
+    if (evalConfig.checkpointGlob) {
+      console.log(`checkpoint: ${row.last_checkpoint || "not found"}`);
     }
     console.log(`recorded: ${id}`);
   }
@@ -4439,7 +4642,20 @@ function findLatestResumableRun(cwd) {
 
 async function cmdResume() {
   const cwd = targetDir();
-  const explicitId = option("--id", null);
+  const idOpt = option("--id", null);
+  const valueFlags = new Set(["--dir", "--id", "--command", "--metric", "--regex", "--timeout", "--resume-id"]);
+  let positionalId = null;
+  for (let i = 1; i < args.length; i += 1) {
+    const arg = args[i];
+    if (valueFlags.has(arg)) {
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--")) continue;
+    positionalId = arg;
+    break;
+  }
+  const explicitId = typeof idOpt === "string" ? idOpt : positionalId;
   let source;
   if (explicitId && typeof explicitId === "string") {
     source = readRunRowById(cwd, explicitId);
@@ -4472,8 +4688,29 @@ async function cmdResume() {
   const regexSource = option("--regex", null);
   const timeoutSec = Number(option("--timeout", 600));
   const allowUnsafe = hasFlag("--allow-unsafe");
+  const dryRun = hasFlag("--dry-run");
   const cmdOverride = option("--command", null);
-  const cmdText = cmdOverride && typeof cmdOverride === "string" ? cmdOverride : source.command;
+  const evalConfig = loadEvalConfig(cwd);
+  const checkpointRequired = Boolean(evalConfig.checkpointGlob || source.last_checkpoint);
+  let checkpoint = existingCheckpointFromRow(cwd, source);
+  if (!checkpoint && evalConfig.checkpointGlob) {
+    checkpoint = findNewestCheckpoint(cwd, evalConfig.checkpointGlob);
+  }
+  if (checkpointRequired && !checkpoint) {
+    console.error(`autoresearch resume: no checkpoint found for run ${source.id}.`);
+    if (evalConfig.checkpointGlob) {
+      console.error(`checkpoint_glob: ${evalConfig.checkpointGlob}`);
+    } else if (source.last_checkpoint) {
+      console.error(`last_checkpoint: ${source.last_checkpoint}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const baseCmdText = cmdOverride && typeof cmdOverride === "string" ? cmdOverride : source.command;
+  const cmdText = checkpoint && !(cmdOverride && typeof cmdOverride === "string")
+    ? applyResumeFlagTemplate(baseCmdText, evalConfig.resumeFlagTemplate, checkpoint.relative)
+    : baseCmdText;
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const resumeId = String(option("--resume-id", `resume-${source.id}-${stamp}`));
@@ -4482,11 +4719,31 @@ async function cmdResume() {
   console.log(`source: ${source.id} (status=${source.status})`);
   console.log(`command: ${cmdText}`);
   console.log(`resume_dir: ${hasSourceDir ? path.relative(cwd, sourceRunDir) : "(missing — env vars set anyway)"}`);
+  if (checkpoint) {
+    console.log(`checkpoint: ${checkpoint.relative}`);
+  }
   console.log(`metric: ${metricName}`);
+  if (dryRun) {
+    console.log("dry_run: true");
+  }
   console.log("---");
 
   if (!hasSourceDir) {
     console.error("WARNING: prior run dir not found; resume env vars will point to a missing path.");
+  }
+
+  if (dryRun) {
+    return;
+  }
+
+  const resumeEnv = {
+    RESEARCHLOOP_RESUME: "1",
+    RESEARCHLOOP_RESUME_FROM: source.id,
+    RESEARCHLOOP_RESUME_DIR: sourceDirAbs,
+  };
+  if (checkpoint) {
+    resumeEnv.RESEARCHLOOP_RESUME_CHECKPOINT = checkpoint.absolute;
+    resumeEnv.RESEARCHLOOP_RESUME_CHECKPOINT_REL = checkpoint.relative;
   }
 
   const res = await executeRun({
@@ -4501,13 +4758,11 @@ async function cmdResume() {
     extraConfig: {
       resume_of: source.id,
       resume_dir: sourceDirAbs,
+      resume_checkpoint: checkpoint ? checkpoint.relative : null,
+      resume_command: cmdText,
       source_status: source.status,
     },
-    extraEnv: {
-      RESEARCHLOOP_RESUME: "1",
-      RESEARCHLOOP_RESUME_FROM: source.id,
-      RESEARCHLOOP_RESUME_DIR: sourceDirAbs,
-    },
+    extraEnv: resumeEnv,
     suppressExitCode: true,
     quiet: true,
     tags: ["resume"],
@@ -6925,7 +7180,7 @@ Usage:
   autoresearch anomalies [--id RUN_ID] [--format text|json] [--dir PATH]
   autoresearch verify --id <run-id> [--metric NAME] [--tolerance N] [--timeout SECONDS] [--allow-unsafe] [--dir PATH]
   autoresearch preflight [--command CMD] [--require-gpu] [--min-disk-gb N] [--min-mem-gb N] [--format text|json] [--dir PATH]
-  autoresearch resume [--id RUN_ID] [--command CMD] [--metric NAME] [--timeout SECONDS] [--allow-unsafe] [--dir PATH]
+  autoresearch resume [RUN_ID] [--id RUN_ID] [--command CMD] [--metric NAME] [--timeout SECONDS] [--dry-run] [--allow-unsafe] [--dir PATH]
   autoresearch scan-papers [--dir PATH] [--query TEXT] [--limit N] [--since YYYY-MM] [--cache-dir PATH] [--offline]
   autoresearch compare [--dir PATH] [--metric NAME] [--direction lower|higher]
   autoresearch team [--dir PATH] [--workers N] [--goal TEXT] [--force]

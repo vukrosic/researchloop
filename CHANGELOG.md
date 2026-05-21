@@ -4,13 +4,14 @@
 
 New:
 
+- **Checkpoint-aware `autoresearch resume` (G09).** `eval.yaml` can now declare `checkpoint_glob` and `resume_flag_template`. `run` records the newest matching checkpoint as `last_checkpoint`; `resume [RUN_ID] --dry-run` prints the exact restart command with the resume flag appended without executing it; configured checkpoint resumes fail clearly when no checkpoint exists.
 - **`autoresearch review --id <run-id>` (G19 minimal).** Runs five programmatic checks against a recorded run: `status_ok` (status ∈ complete | promoted | kept), `metric_finite` (primary metric present and finite), `env_captured` (G14 fields populated), `git_clean` (not explicitly dirty; null git context allowed), `curve_present` (at least one streamed sample), and `artifacts_present` (env.json + config.json + MANIFEST.json exist). `--format text|json|markdown` and `--out FILE.md` for persistence. Exits non-zero on any failure. `promote` now invokes this review automatically and blocks unless `--force` or `--skip-review`. A passing review is written to `winners/<id>/review.md`.
 - **`autoresearch promote --id <run-id>` (G05 completion).** Copies the run's `env.json`, `code.diff`, `config.json`, `metrics.jsonl`, `system.jsonl`, `MANIFEST.json`, `log.txt`, plus a snapshot of `goal.md` and `command.txt`, into `.researchloop/winners/<id>/`. Writes `PROMOTION.md` and `row.json`. Flips the ledger row's `status` to `promoted` and appends a `gate_reasons` entry with the prior status. Refuses to promote `failed | timeout | killed_by_safety | killed_by_rule | discarded` rows unless `--force`. `--note TEXT` attaches a free-form note.
 - **OOM / hardware retry (G12).** New `.researchloop/eval.yaml` section `retry:`. When a run ends with `failed | timeout | spawn_error`, the captured output is scanned for matching rules; the first match runs `transform` on the command (today: `halve:<flag>` and `set:<flag>=<value>`) and re-launches as a new ledger row with `retry_of: <original-id>` and `parent_id: <previous-attempt-id>`. The original failed row gets a `retry_reason` field. `max_retries: 0` disables retries for the rule.
 - **Streaming metric capture (G06 minimal).** `autoresearch run` and `baseline` now parse the primary metric line-by-line as the child process runs, and stream every sample to `metrics.jsonl` in the run directory while the process is still alive. Final `metric_history` is derived from the streamed series — log-rescan only kicks in as a fallback.
 - **NaN / divergence early-stop (G11).** New `.researchloop/eval.yaml` section `early_stop:` with `nan_or_inf` and `>Nx_baseline_after_step_K` rules. On trigger the runner SIGTERMs the entire process group and SIGKILLs after 2 s, then writes `status: "killed_by_rule"` and `kill_reason: "<rule>"` on the row. Saves real GPU-hours when a learning rate diverges training.
 - **Promotion gates (G05).** New `eval.yaml` section `gates:` with rules like `{metric: val_loss, op: "<", value: "{baseline}-0.02", action: promote|discard}`. After a run completes, the row's `status` auto-flips to `promoted | kept | discarded` and `gate_reasons` records which gate fired.
-- **`eval.yaml` schema (G04 minimal).** New template `.researchloop/eval.yaml` is now scaffolded by `autoresearch init`. Reserves `metrics`, `curves`, `checkpoint_glob`, `resume_flag_template`, and `retry` keys for future goals.
+- **`eval.yaml` schema (G04 minimal).** New template `.researchloop/eval.yaml` is now scaffolded by `autoresearch init`. Reserves `metrics` and `curves`, and now powers `early_stop`, `gates`, `retry`, `checkpoint_glob`, and `resume_flag_template`.
 - **`autoresearch curves --id <run-id>`.** Prints the streamed metric series as a unicode sparkline plus summary stats (min, max, final, non-finite count). `--format json|jsonl` for scripting.
 - **`/api/curves?run=<id>`** endpoint on the dashboard server returns the streamed series as JSON, ready for chart UIs.
 
@@ -28,6 +29,7 @@ Improved:
 Tests:
 
 - New: `test:early-stop`, `test:gates`, `test:curves`, `test:promote`, `test:retry`, `test:review`, all wired into `npm test`.
+- Expanded: `test:resume` now covers checkpoint capture, dry-run command output, and the no-checkpoint failure path.
 - New: `test:cost`, wired into `npm test`.
 - New: `test:query`, wired into `npm test`; also fixes empty table results to print a header row instead of placeholder text.
 - New: `test:report`, wired into `npm test`.

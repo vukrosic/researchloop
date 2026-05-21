@@ -174,7 +174,7 @@ The startup plan is in `docs/startup/`.
 - `autoresearch anomalies [--id RUN_ID]` scans recorded metric history for divergence (NaN/inf), spikes, and plateaus.
 - `autoresearch verify --id <run-id>` re-runs a recorded run from the ledger and reports `deterministic` / `drifted` based on the metric delta. Tolerance via `--tolerance N`.
 - `autoresearch preflight` checks command/safety/metric/disk/RAM/GPU/baseline before you `run`. `--require-gpu`, `--min-disk-gb`, `--min-mem-gb` for hard gates; `--format json` for scripting.
-- `autoresearch resume [--id RUN_ID]` re-launches a failed or timed-out run. Exposes `$RESEARCHLOOP_RESUME=1`, `$RESEARCHLOOP_RESUME_FROM=<source-id>`, and `$RESEARCHLOOP_RESUME_DIR=<prior-run-dir>` to the child process so your training script can load its last checkpoint. Auto-picks the latest resumable run when `--id` is omitted.
+- `autoresearch resume [RUN_ID] [--dry-run]` re-launches a failed or timed-out run. Exposes `$RESEARCHLOOP_RESUME=1`, `$RESEARCHLOOP_RESUME_FROM=<source-id>`, `$RESEARCHLOOP_RESUME_DIR=<prior-run-dir>`, and, when configured, `$RESEARCHLOOP_RESUME_CHECKPOINT(_REL)` so your training script can load its last checkpoint. With `checkpoint_glob` + `resume_flag_template` in `eval.yaml`, it appends the resume flag to the original command and prints the exact command before running. Auto-picks the latest resumable run when no id is provided.
 - `autoresearch inspect` now writes a `multi_gpu` block into `repo-profile.json` that detects torchrun, accelerate, deepspeed, and pytorch-lightning launchers and emits suggested command shapes.
 - `autoresearch record` appends a structured run result to `runs.jsonl` (use for manual rows).
 - `autoresearch compare` ranks runs by a chosen metric and reports GPU-hours and peak memory when present.
@@ -188,7 +188,7 @@ The startup plan is in `docs/startup/`.
 
 ### Evaluation rules (`.researchloop/eval.yaml`)
 
-Two sections are active today; both are optional.
+These sections are active today; all are optional.
 
 ```yaml
 # Kill a diverged run before it burns the full timeout.
@@ -205,9 +205,13 @@ gates:
 retry:
   - {match: "CUDA out of memory|RuntimeError: out of memory",
      transform: "halve:batch_size", max_retries: 2}
+
+# Record newest checkpoints during a run and build the resume command from it.
+checkpoint_glob: "checkpoints/*.pt"
+resume_flag_template: "--resume {path}"
 ```
 
-Runs that trigger an early-stop rule end with `status: "killed_by_rule"` and a `kill_reason` field on the row. Runs that match a gate end with `status: promoted | kept | discarded` and `gate_reasons`.
+Runs that trigger an early-stop rule end with `status: "killed_by_rule"` and a `kill_reason` field on the row. Runs that match a gate end with `status: promoted | kept | discarded` and `gate_reasons`. Runs with `checkpoint_glob` record `last_checkpoint`; `autoresearch resume --dry-run` is the safe way to inspect the exact checkpoint restart command before spending GPU time.
 
 GPU stats are captured automatically per run when `nvidia-smi` is present: `gpu_util_max_pct`, `gpu_util_mean_pct`, `gpu_memory_peak_mb`, `gpu_memory_total_mb`, and `gpu_hours` are written into the ledger row. The fields exist (null) on non-GPU hosts so the schema stays stable.
 
@@ -276,7 +280,7 @@ New run rows then include `est_cost_usd`, computed as `wall_seconds / 3600 * hou
 - `npm run test:verify` checks `verify --id` reproduces deterministic runs and reports drift when the recorded metric does not match.
 - `npm run test:preflight` checks preflight gates (command, safety, metric, disk, memory, GPU, baseline) in both text and JSON outputs.
 - `npm run test:multi-gpu-detect` checks torchrun / accelerate / deepspeed / pytorch-lightning launchers are detected in `inspect`.
-- `npm run test:resume` checks the resume command finds the latest failed run, exposes the resume env vars to the child, and records the `resume_of` pointer.
+- `npm run test:resume` checks the resume command finds the latest failed run, exposes the resume env vars to the child, records the `resume_of` pointer, captures `last_checkpoint`, prints checkpoint restart commands under `--dry-run`, and fails clearly when no configured checkpoint exists.
 - `npm run test:early-stop` checks that `nan_or_inf` and `>Nx_baseline_after_step_K` early-stop rules kill the child process group within seconds, record `killed_by_rule` + `kill_reason`, and stream `metrics.jsonl` before the kill.
 - `npm run test:gates` checks promotion gates flip `status` to `promoted | kept | discarded` and write `gate_reasons` for each rule.
 - `npm run test:curves` checks `autoresearch curves --id <id>` reads the streamed series, prints a sparkline and summary, and emits JSON/JSONL.

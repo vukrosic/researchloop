@@ -400,6 +400,8 @@ Two workers may not edit the same template file unless one is the integration ow
 
 ### G09 — Checkpoint capture and `autoresearch resume`
 
+**Status.** Shipped. `executeRun` records `last_checkpoint` from `checkpoint_glob`, and `cmdResume` supports checkpoint restart commands plus `--dry-run`; `scripts/test-resume.sh` covers checkpoint capture, dry-run output, real resume env vars, and the no-checkpoint failure path.
+
 **Motivation.** Long runs crash. We currently lose all in-flight state. The CLI should be able to resume a partial run from its last checkpoint.
 
 **Deliverables.**
