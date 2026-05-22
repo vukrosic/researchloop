@@ -6243,7 +6243,14 @@ function cmdDigest() {
     else if (unit === "d") sinceMs = val * 24 * 60 * 60 * 1000;
     else if (unit === "m") sinceMs = val * 60 * 1000;
   }
-  const cutoff = Date.now() - sinceMs;
+  const nowFlag = option("--now");
+  const nowMs = nowFlag ? Date.parse(String(nowFlag)) : Date.now();
+  if (Number.isNaN(nowMs)) {
+    console.error(`autoresearch digest: invalid --now value: ${nowFlag}`);
+    process.exitCode = 1;
+    return;
+  }
+  const cutoff = nowMs - sinceMs;
 
   let runs = [];
   try {
